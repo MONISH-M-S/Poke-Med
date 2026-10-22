@@ -39,7 +39,7 @@ export default function Nav() {
     setBusy(true);
     try {
       await fetch("/api/auth/logout", { method: "POST" });
-      router.replace("/login");
+      router.replace("/login?switch=1");
       router.refresh();
     } finally {
       setBusy(false);

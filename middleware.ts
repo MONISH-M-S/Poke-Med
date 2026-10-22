@@ -17,7 +17,8 @@ export async function middleware(req: NextRequest) {
   const session = await verifySession(req.cookies.get(COOKIE_NAME)?.value);
 
   if (pathname === "/login") {
-    if (session) {
+    const switching = req.nextUrl.searchParams.get("switch") === "1";
+    if (session && !switching) {
       return NextResponse.redirect(new URL(session.role === "elder" ? "/elder" : "/", req.url));
     }
     return NextResponse.next();

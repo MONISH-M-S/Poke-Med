@@ -171,7 +171,7 @@ export default function ElderScreen() {
 
   async function signOut() {
     await fetch("/api/auth/logout", { method: "POST" });
-    window.location.href = "/login";
+    window.location.href = "/login?switch=1";
   }
 
   if (error) {
@@ -212,13 +212,13 @@ export default function ElderScreen() {
           <Link href="/" className="text-lg font-extrabold tracking-tight text-brand-700">
             PokéMed
           </Link>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-1.5">
             <div className="flex rounded-full border border-line bg-white p-1" role="group" aria-label={t.language}>
               {(["en", "ta", "hi"] as Lang[]).map((l) => (
                 <button
                   key={l}
                   onClick={() => setLang(l)}
-                  className={`rounded-full px-2.5 py-1 text-xs font-bold ${
+                  className={`rounded-full px-2 py-1 text-xs font-bold ${
                     lang === l ? "bg-brand-600 text-white" : "text-muted"
                   }`}
                   aria-pressed={lang === l}
@@ -229,12 +229,18 @@ export default function ElderScreen() {
             </div>
             <button
               onClick={() => setVoiceOn((v) => !v)}
-              className={`rounded-full border px-3 py-1.5 text-xs font-bold ${
+              className={`rounded-full border px-2.5 py-1.5 text-xs font-bold ${
                 voiceOn ? "border-brand-100 bg-brand-50 text-brand-700" : "border-line bg-white text-muted"
               }`}
               aria-pressed={voiceOn}
             >
               {t.voice} {voiceOn ? "on" : "off"}
+            </button>
+            <button
+              onClick={() => void signOut()}
+              className="rounded-full border border-line bg-white px-2.5 py-1.5 text-xs font-bold text-muted"
+            >
+              Switch
             </button>
           </div>
         </div>
@@ -361,7 +367,7 @@ export default function ElderScreen() {
             onClick={() => void signOut()}
             className="text-[11px] font-semibold text-muted underline decoration-dotted underline-offset-2 hover:text-ink"
           >
-            Sign out
+            Switch person
           </button>
         </div>
       </div>

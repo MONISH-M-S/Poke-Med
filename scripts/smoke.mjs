@@ -80,6 +80,24 @@ function setCookieFrom(res) {
   });
   check("the elder session can read her own screen", elderState.status === 200, `status ${elderState.status}`);
 
+  const elderLoginPage = await fetch(BASE + "/login", {
+    redirect: "manual",
+    headers: { cookie: elderCookie },
+  });
+  check(
+    "an elder session is sent back to her screen from /login",
+    elderLoginPage.status >= 300 &&
+      elderLoginPage.status < 400 &&
+      /\/elder/.test(elderLoginPage.headers.get("location") ?? ""),
+    `${elderLoginPage.status} → ${elderLoginPage.headers.get("location") ?? ""}`,
+  );
+
+  const switchPage = await fetch(BASE + "/login?switch=1", {
+    redirect: "manual",
+    headers: { cookie: elderCookie },
+  });
+  check("?switch=1 still shows the chooser", switchPage.status === 200, `status ${switchPage.status}`);
+
   const elderDemo = await fetch(BASE + "/api/demo", {
     method: "POST",
     headers: { "Content-Type": "application/json", cookie: elderCookie },
