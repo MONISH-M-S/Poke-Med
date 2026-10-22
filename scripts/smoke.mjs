@@ -1,31 +1,132 @@
 const BASE = "http://localhost:3000";
 
-async function post(path, body) {
-  const res = await fetch(BASE + path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body ?? {}),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(`${path} -> ${res.status} ${JSON.stringify(data)}`);
-  return data;
-}
-
-async function get(path) {
-  const res = await fetch(BASE + path, { cache: "no-store" });
-  if (!res.ok) throw new Error(`${path} -> ${res.status}`);
-  return res.json();
-}
-
-const RX = `Tab. Dolo 650mg          1-1-1 PC      x 3 days
-Tab. Ibuprofen 400mg     BD PC         x 3 days
-Tab. Metformin 500mg     1-0-1 PC      x 30 days`;
-
 const results = [];
 const check = (name, pass, detail = "") => {
   results.push({ name, pass, detail });
   console.log(`${pass ? "PASS" : "FAIL"}  ${name}${detail ? " — " + detail : ""}`);
 };
+
+let cookie = "";
+
+function authHeaders(extra = {}) {
+  return cookie ? { ...extra, cookie } : extra;
+}
+
+async function post(path, body, { auth = true } = {}) {
+  const headers = auth
+    ? authHeaders({ "Content-Type": "application/json" })
+    : { "Content-Type": "application/json" };
+  const res = await fetch(BASE + path, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body ?? {}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`${path} -> ${res.status} ${JSON.stringify(data)}`);
+  return data;
+}
+
+async function get(path, { auth = true } = {}) {
+  const res = await fetch(BASE + path, {
+    cache: "no-store",
+    headers: auth ? authHeaders() : {},
+  });
+  if (!res.ok) throw new Error(`${path} -> ${res.status}`);
+  return res.json();
+}
+
+function setCookieFrom(res) {
+  const raw = res.headers.getSetCookie?.()[0] ?? res.headers.get("set-cookie") ?? "";
+  return raw.split(";")[0];
+}
+
+// ---------------------------------------------------------------- sign-in gate
+
+{
+  const page = await fetch(BASE + "/", { redirect: "manual" });
+  const location = page.headers.get("location") ?? "";
+  check(
+    "signed-out visitors are sent to the login page",
+    page.status >= 300 && page.status < 400 && /\/login/.test(location),
+    `${page.status} → ${location}`,
+  );
+
+  const api = await fetch(BASE + "/api/state", { cache: "no-store" });
+  check("signed-out API calls get 401", api.status === 401, `status ${api.status}`);
+
+  const wrong = await fetch(BASE + "/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode: "elder", pin: "9999" }),
+  });
+  check("a wrong PIN is rejected", wrong.status === 401, `status ${wrong.status}`);
+
+  const elder = await fetch(BASE + "/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode: "elder", pin: "1234" }),
+  });
+  const elderBody = await elder.json();
+  const elderCookie = setCookieFrom(elder);
+  check(
+    "the elder PIN opens only the elder session",
+    elder.ok && elderBody.role === "elder" && Boolean(elderCookie),
+    `role ${elderBody.role ?? "none"}`,
+  );
+
+  const elderState = await fetch(BASE + "/api/state", {
+    cache: "no-store",
+    headers: { cookie: elderCookie },
+  });
+  check("the elder session can read her own screen", elderState.status === 200, `status ${elderState.status}`);
+
+  const elderDemo = await fetch(BASE + "/api/demo", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", cookie: elderCookie },
+    body: JSON.stringify({ action: "reset" }),
+  });
+  check(
+    "the elder session cannot reach caregiver APIs",
+    elderDemo.status === 403,
+    `status ${elderDemo.status}`,
+  );
+
+  const crossover = await fetch(BASE + "/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode: "caregiver", pin: "1234" }),
+  });
+  check(
+    "the elder PIN cannot open the caregiver view",
+    crossover.status === 401,
+    `status ${crossover.status}`,
+  );
+
+  const caregiver = await fetch(BASE + "/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode: "caregiver", pin: "2468" }),
+  });
+  const caregiverBody = await caregiver.json();
+  cookie = setCookieFrom(caregiver);
+  check(
+    "the caregiver login returns a caregiver session",
+    caregiver.ok && caregiverBody.role === "caregiver" && Boolean(cookie),
+    `role ${caregiverBody.role ?? "none"}`,
+  );
+
+  const caregiverState = await fetch(BASE + "/api/state", {
+    cache: "no-store",
+    headers: authHeaders(),
+  });
+  check("the caregiver session can reach the dashboard", caregiverState.status === 200, `status ${caregiverState.status}`);
+}
+
+// ------------------------------------------------------------------ demo flow
+
+const RX = `Tab. Dolo 650mg          1-1-1 PC      x 3 days
+Tab. Ibuprofen 400mg     BD PC         x 3 days
+Tab. Metformin 500mg     1-0-1 PC      x 30 days`;
 
 let state = await post("/api/demo", { action: "reset" });
 check("reset gives a seeded week", state.week.total > 20, `${state.week.percent}% over ${state.week.total} doses`);
@@ -96,5 +197,20 @@ const real = await post("/api/demo", { action: "realTime" });
 check("clock can return to real time", real.offsetMinutes === 0);
 
 await post("/api/demo", { action: "reset" });
+
+// ------------------------------------------------------------------- sign-out
+
+{
+  const out = await fetch(BASE + "/api/auth/logout", { method: "POST", headers: authHeaders() });
+  const cleared = out.headers.getSetCookie?.()[0] ?? "";
+  check("signing out clears the session cookie", out.ok && /pokemed_session=;/.test(cleared), `status ${out.status}`);
+
+  const forged = await fetch(BASE + "/api/state", {
+    cache: "no-store",
+    headers: { cookie: "pokemed_session=forged.signature" },
+  });
+  check("a forged session cookie is rejected", forged.status === 401, `status ${forged.status}`);
+}
+
 console.log("\n" + results.filter((r) => r.pass).length + "/" + results.length + " passed");
 if (results.some((r) => !r.pass)) process.exit(1);

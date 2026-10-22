@@ -169,6 +169,11 @@ export default function ElderScreen() {
     }
   }
 
+  async function signOut() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    window.location.href = "/login";
+  }
+
   if (error) {
     return (
       <div className="elder-body grid min-h-screen place-items-center p-6">
@@ -349,9 +354,16 @@ export default function ElderScreen() {
           </div>
         )}
 
-        <p className="mt-8 pb-2 text-center text-[11px] leading-snug text-muted">
-          Decision support, not medical advice.
-        </p>
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 pb-2">
+          <p className="text-center text-[11px] leading-snug text-muted">Decision support, not medical advice.</p>
+          <button
+            type="button"
+            onClick={() => void signOut()}
+            className="text-[11px] font-semibold text-muted underline decoration-dotted underline-offset-2 hover:text-ink"
+          >
+            Sign out
+          </button>
+        </div>
       </div>
     </div>
   );

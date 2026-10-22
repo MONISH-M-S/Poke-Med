@@ -38,9 +38,13 @@ family sees what happened — including the doses that were missed.
 |---|---|
 | ![Dashboard](docs/dashboard.png) | ![Elder screen](docs/elder-phone.png) |
 
-| Confirming the prescription | Missed-dose alert |
+| Two doors: one PIN each | Confirming the prescription |
 |---|---|
-| ![Review](docs/review.png) | ![Missed dose](docs/dashboard-missed.png) |
+| ![Sign in](docs/login.png) | ![Review](docs/review.png) |
+
+| Missed-dose alert |
+|---|
+| ![Missed dose](docs/dashboard-missed.png) |
 
 ---
 
@@ -52,10 +56,24 @@ npm run seed     # a synthetic elder, caregiver and a realistic week of history
 npm run dev      # http://localhost:3000
 ```
 
+Sign in with a PIN — no email, no password to type on a phone:
+
+| Who | PIN | Sees |
+|---|---|---|
+| Lakshmi (elder) | `1234` | Her own screen only: today's doses and the **Taken** button |
+| Arjun (caregiver) | `2468` | Everything: scan, schedule, report, flags, and a preview of her screen |
+
+The two PINs are separate doors. Lakshmi's session is confined to `/elder`, `/api/state` and `/api/doses`; anything
+else redirects or returns 403. Arjun's session can reach the whole app. PINs are scrypt-hashed in the data file, and
+the session is an HMAC-signed, http-only cookie (seven days). This is prototype auth: the demo PINs are printed on the
+sign-in screen, and there is no account recovery.
+
 Optional environment (see `.env.example`):
 
 - `OPENAI_API_KEY` — reads prescription photos with a vision model.
 - Without it, photos are read in the browser with Tesseract.js, or you can paste prescription text.
+- `AUTH_SECRET` — signs the session cookie. A demo fallback is built in; set a long random value before deploying
+  anywhere real.
 
 Useful scripts:
 
@@ -94,6 +112,10 @@ schedule is reproducible and explainable.
 **One clock.** Every read of "now" goes through `lib/clock.ts`. The demo panel shifts it, and the missed-dose sweep
 runs on each state read, so there is no cron job and nothing to wait for on stage.
 
+**Two doors, one app.** `middleware.ts` checks a signed session on every page and API call. An elder session can only
+reach `/elder` and her two endpoints; a caregiver session can reach everything. The PIN is the whole login — one big
+keypad, four digits, no keyboard — because the person using it may be 72 and holding the phone at arm's length.
+
 **Safety checks compare active ingredients, not names.** `Crocin` and `Dolo` are both paracetamol, and that is
 exactly the mistake families make. The brand→salt map is deliberately small and curated.
 
@@ -103,7 +125,8 @@ exactly the mistake families make. The brand→salt map is deliberately small an
 
 | Real | Mocked or limited |
 |---|---|
-| Shorthand decoding, schedule generation, dose logging | A single elder and caregiver; no authentication |
+| Shorthand decoding, schedule generation, dose logging | A single elder and caregiver in the seeded data |
+| Separate elder and caregiver PIN sign-in | Prototype auth: demo PINs shown on screen, no recovery or lockout policy |
 | Missed-dose detection and alerts | Alert is on the caregiver dashboard; email/push not wired by default |
 | Duplicate-salt and curated pair checks | Short curated list, not a full interaction database |
 | Seven-day adherence maths | History is seeded so the report is meaningful in a demo |
@@ -118,6 +141,7 @@ All data is synthetic. Do not enter real patient information.
 
 ## The demo, in one minute
 
+0. Sign in as Arjun with PIN `2468`. (If asked: Lakshmi's door is PIN `1234`, and it opens her screen only.)
 1. Caregiver scans a prescription; the shorthand is decoded on screen; one field is corrected.
 2. The schedule appears for today.
 3. Demo → *Jump to the next dose*, then open the elder screen. It speaks the dose; **Taken** is pressed.

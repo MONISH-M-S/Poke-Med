@@ -2,9 +2,12 @@ node_modules
 .next
 out
 .env*.local
-data/db.json
+data/db.json*
 data/uploads/*
 !data/uploads/.gitkeep
 .tools
 *.tsbuildinfo
 next-env.d.ts
+
+# Personal prescription photos — never commit these.
+priscrip'/

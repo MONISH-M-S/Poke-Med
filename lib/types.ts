@@ -10,6 +10,8 @@ export interface Person {
   city?: string;
   linkedTo?: string;
   language: "en" | "ta" | "hi";
+  /** scrypt hash — PINs are never stored in plain text. */
+  pinHash?: string;
 }
 
 export interface Medicine {

@@ -8,7 +8,7 @@ export default function DemoPanel() {
   const [busy, setBusy] = useState(false);
   const pathname = usePathname();
 
-  if (pathname === "/elder") return null;
+  if (pathname === "/elder" || pathname === "/login") return null;
 
   async function act(action: string) {
     setBusy(true);

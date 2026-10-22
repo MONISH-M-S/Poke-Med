@@ -3,6 +3,8 @@ import path from "node:path";
 import type { DB } from "./types";
 import { buildSeed } from "./seed";
 import { setClockOffset } from "./clock";
+import { hashSecret } from "./auth-hash";
+import { DEMO_CAREGIVER_PIN, DEMO_PIN } from "./demo-auth";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const DB_FILE = path.join(DATA_DIR, "db.json");
@@ -13,6 +15,21 @@ const cache: Cache = (g.__pokemed ??= { db: null });
 
 function ensureDir() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+/**
+ * Databases created before sign-in existed have no PIN/password hashes.
+ * Fill them with the demo credentials once, then write them back.
+ */
+function migrateAuth(db: DB): boolean {
+  let changed = false;
+  for (const person of db.people) {
+    if (!person.pinHash) {
+      person.pinHash = hashSecret(person.role === "elder" ? DEMO_PIN : DEMO_CAREGIVER_PIN);
+      changed = true;
+    }
+  }
+  return changed;
 }
 
 export function readDB(): DB {
@@ -28,6 +45,7 @@ export function readDB(): DB {
   const db = JSON.parse(fs.readFileSync(DB_FILE, "utf8")) as DB;
   cache.db = db;
   setClockOffset(db.clockOffsetMinutes ?? 0);
+  if (migrateAuth(db)) writeDB(db);
   return db;
 }
 

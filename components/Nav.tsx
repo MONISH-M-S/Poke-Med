@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 const links = [
   { href: "/", label: "Dashboard" },
@@ -10,9 +11,40 @@ const links = [
   { href: "/elder", label: "Elder screen" },
 ];
 
+type Me = { role: string; name: string } | null;
+
 export default function Nav() {
   const pathname = usePathname();
-  if (pathname === "/elder") return null;
+  const router = useRouter();
+  const [me, setMe] = useState<Me>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (pathname === "/login" || pathname === "/elder") return;
+    let alive = true;
+    fetch("/api/auth/me")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (alive && data?.role) setMe({ role: data.role, name: data.name });
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [pathname]);
+
+  if (pathname === "/login" || pathname === "/elder") return null;
+
+  async function signOut() {
+    setBusy(true);
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+      router.replace("/login");
+      router.refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-white/95 backdrop-blur print:hidden">
@@ -50,6 +82,29 @@ export default function Nav() {
               </Link>
             );
           })}
+
+          <span className="mx-1 hidden h-6 w-px bg-line sm:block" />
+
+          <span className="hidden items-center gap-2 rounded-lg px-2 py-1.5 sm:flex">
+            <span className="grid h-7 w-7 place-items-center rounded-full bg-ink text-[11px] font-bold text-white">
+              {(me?.name ?? "A").slice(0, 1)}
+            </span>
+            <span className="leading-tight">
+              <span className="block text-xs font-semibold text-ink">{me?.name ?? "Arjun"}</span>
+              <span className="block text-[10px] uppercase tracking-wide text-muted">
+                {me?.role === "caregiver" ? "Caregiver" : "Signed in"}
+              </span>
+            </span>
+          </span>
+
+          <button
+            type="button"
+            onClick={() => void signOut()}
+            disabled={busy}
+            className="whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold text-muted transition hover:bg-paper hover:text-ink disabled:opacity-50"
+          >
+            {busy ? "Signing out…" : "Sign out"}
+          </button>
         </nav>
       </div>
     </header>

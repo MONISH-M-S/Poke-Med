@@ -7,10 +7,27 @@ const root = process.cwd();
 const docs = path.join(root, "docs");
 fs.mkdirSync(docs, { recursive: true });
 
+let cookie = "";
+
+function authHeaders(extra = {}) {
+  return cookie ? { ...extra, cookie } : extra;
+}
+
+async function caregiverLogin() {
+  const res = await fetch(BASE + "/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode: "caregiver", pin: "2468" }),
+  });
+  const raw = res.headers.getSetCookie?.()[0] ?? res.headers.get("set-cookie") ?? "";
+  cookie = raw.split(";")[0];
+  if (!res.ok || !cookie) throw new Error("caregiver login failed: " + res.status);
+}
+
 async function reset() {
   await fetch(BASE + "/api/demo", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ action: "reset" }),
   });
 }
@@ -20,6 +37,10 @@ const errors = [];
 
 async function newPage(width, height) {
   const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 2 });
+  if (cookie) {
+    const [name, ...rest] = cookie.split("=");
+    await ctx.addCookies([{ name, value: rest.join("="), domain: "localhost", path: "/" }]);
+  }
   const page = await ctx.newPage();
   page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
   page.on("console", (m) => {
@@ -45,9 +66,19 @@ async function shot(page, name) {
   await ctx.close();
 }
 
+// 2. The two-door sign-in screen (before we hold a session)
+{
+  const page = await newPage(1440, 1050);
+  await page.goto(BASE + "/login", { waitUntil: "networkidle" });
+  await page.waitForTimeout(600);
+  await shot(page, "login.png");
+  await page.context().close();
+}
+
+await caregiverLogin();
 await reset();
 
-// 2. Dashboard
+// 3. Dashboard
 {
   const page = await newPage(1440, 1050);
   await page.goto(BASE + "/", { waitUntil: "networkidle" });
@@ -104,7 +135,7 @@ await reset();
 {
   await fetch(BASE + "/api/demo", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ action: "nextDose" }),
   });
   const page = await newPage(1440, 1050);
@@ -126,7 +157,7 @@ await reset();
   await reset();
   await fetch(BASE + "/api/demo", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ action: "nextMiss" }),
   });
   const page = await newPage(1440, 1050);

@@ -1,6 +1,8 @@
 import type { DB, Medicine } from "./types";
 import { atTime, dateKeyOffset, now } from "./clock";
 import { generateDoses } from "./doses";
+import { hashSecret } from "./auth-hash";
+import { DEMO_CAREGIVER_PIN, DEMO_PIN } from "./demo-auth";
 
 const uid = (p: string) => `${p}_${Math.random().toString(36).slice(2, 9)}`;
 
@@ -125,6 +127,7 @@ export function buildSeed(): DB {
         city: "Chennai",
         linkedTo: "cg_arjun",
         language: "en",
+        pinHash: hashSecret(DEMO_PIN),
       },
       {
         id: "cg_arjun",
@@ -133,6 +136,7 @@ export function buildSeed(): DB {
         city: "Bengaluru",
         linkedTo: "el_lakshmi",
         language: "en",
+        pinHash: hashSecret(DEMO_CAREGIVER_PIN),
       },
     ],
     medicines,
