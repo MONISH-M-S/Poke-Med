@@ -1,16 +1,17 @@
 import { NextResponse } from "next/server";
-import { parsePrescriptionText } from "@/lib/parse/sig";
+import { parsePrescription } from "@/lib/parse/sig";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const PROMPT = `Transcribe this prescription image exactly as written.
+const PROMPT = `Transcribe the medicine lines on this prescription exactly as written, for a pharmacist to check.
 Rules:
-- Output only the medicine lines, one per line.
-- Preserve the doctor's shorthand exactly (for example 1-0-1, BD, TDS, HS, SOS, PC, AC, x 30 days).
-- Keep brand names and strengths as written.
-- Do not explain, do not translate, do not invent. If a line is unreadable, write [illegible].
-- Do not add a heading or a summary.`;
+- Output one medicine per line, in the order written. Keep the line breaks.
+- Start at the first medicine. Leave out the clinic letterhead, patient name, diagnosis, advice and signature.
+- Preserve the doctor's shorthand exactly: 1-0-1, OD, BD, TDS, QID, HS, SOS, STAT, PC, AC, x 30 days, 8hrly.
+- Keep brand names, strengths and routes as written, including IV, IM and Inj.
+- If a word is unreadable, write [illegible] in its place. Never guess a drug name.
+- Do not explain, translate, summarise or add advice.`;
 
 async function visionTranscribe(file: File): Promise<string | null> {
   const key = process.env.OPENAI_API_KEY;
@@ -56,11 +57,12 @@ export async function POST(req: Request) {
     if (!text?.trim()) {
       return NextResponse.json({ error: "No prescription text supplied." }, { status: 400 });
     }
-    const medicines = parsePrescriptionText(text);
+    const { medicines, ignored } = parsePrescription(text);
     return NextResponse.json({
       mode: "text",
       rawText: text,
       medicines,
+      ignored,
       message:
         medicines.length === 0
           ? "We could not find a medicine line in that text. Try one medicine per line."
@@ -78,8 +80,17 @@ export async function POST(req: Request) {
   try {
     const rawText = await visionTranscribe(file);
     if (rawText) {
-      const medicines = parsePrescriptionText(rawText);
-      return NextResponse.json({ mode: "vision", rawText, medicines, message: null });
+      const { medicines, ignored } = parsePrescription(rawText);
+      return NextResponse.json({
+        mode: "vision",
+        rawText,
+        medicines,
+        ignored,
+        message:
+          medicines.length === 0
+            ? "The vision service returned text, but no medicine line was recognised. Check the text below."
+            : null,
+      });
     }
   } catch {
     // fall through to the honest message below
@@ -89,7 +100,8 @@ export async function POST(req: Request) {
     mode: "needs-text",
     rawText: "",
     medicines: [],
+    ignored: [],
     message:
-      "No vision key is configured, so the image was not read. Use “Read text with browser OCR”, paste the prescription text, or add OPENAI_API_KEY.",
+      "No vision key is configured, so the image will be read in the browser with OCR.",
   });
 }

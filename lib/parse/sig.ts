@@ -1,5 +1,5 @@
 import type { ExtractedMedicine, FoodRel } from "../types";
-import { saltsFor } from "../data/brands";
+import { saltsFor, suggestBrand } from "../data/brands";
 
 /**
  * Doctor shorthand -> real times.
@@ -44,9 +44,26 @@ function everyNHours(n: number): string[] {
   return out.length ? out : ["08:00"];
 }
 
+/** "7 AM", "7:30 pm", "19.00" -> "07:00" / "19:30". */
+function clockTimes(text: string): string[] {
+  const out = new Set<string>();
+  const re = /\b(\d{1,2})(?:[:.](\d{2}))?\s*(a\.?m\.?|p\.?m\.?)\b/gi;
+  for (const match of text.matchAll(re)) {
+    let hour = Number(match[1]);
+    const minutes = Number(match[2] ?? 0);
+    const pm = /^p/i.test(match[3]);
+    if (pm && hour < 12) hour += 12;
+    if (!pm && hour === 12) hour = 0;
+    if (hour > 23 || minutes > 59) continue;
+    out.add(`${String(hour).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`);
+  }
+  return [...out].sort();
+}
+
 export function parseSig(raw: string): ParsedSig {
   const notes: string[] = [];
-  const text = raw.trim();
+  // OCR-friendly normalisation: "1 / 2" is a half tablet, not a blood pressure.
+  const text = raw.replace(/(^|[\s(-])1\s*\/\s*2(?=[\s)-]|$)/g, "$1½").trim();
 
   // Food relationship
   let relationToFood: FoodRel = null;
@@ -61,7 +78,9 @@ export function parseSig(raw: string): ParsedSig {
 
   // Duration: x 30 days / x30d / for 5 days / x 1 week
   let durationDays: number | null = null;
-  const dur = text.match(/(?:x|×|for)\s*(\d+)\s*(days?|d|weeks?|w|wks?)?/i);
+  const dur = text.match(
+    /(?:x|×|for)\s*(\d+)\s*(days?|d|weeks?|w|wks?)?\b(?!\s*(?:mg|mcg|ml|g)\b)/i,
+  );
   if (dur) {
     const n = Number(dur[1]);
     const unit = (dur[2] ?? "d").toLowerCase();
@@ -90,8 +109,14 @@ export function parseSig(raw: string): ParsedSig {
   let confidence = 0.55;
   let decidedBy = "";
 
-  if (pattern) {
-    const parts = pattern[1].split(/\s*-\s*/).map(slotValue);
+  // A date like 17-7-24 is not a dose pattern.
+  const dose =
+    pattern && pattern[1].split(/\s*-\s*/).map(slotValue).every((p) => p <= 4)
+      ? pattern[1]
+      : null;
+
+  if (dose) {
+    const parts = dose.split(/\s*-\s*/).map(slotValue);
     const base = parts.length === 4 ? BASE4 : parts.length === 3 ? BASE3 : BASE2;
     times = parts
       .map((value, i) => (value > 0 ? (base[i] ?? BASE3[i]) : null))
@@ -99,7 +124,7 @@ export function parseSig(raw: string): ParsedSig {
     const positive = parts.filter((p) => p > 0);
     unitsPerDose = positive.length ? Math.max(...positive) : 1;
     confidence = 0.97;
-    decidedBy = `dose pattern ${pattern[1].replace(/\s/g, "")}`;
+    decidedBy = `dose pattern ${dose.replace(/\s/g, "")}`;
     if (bedtime && times.length === 1) {
       times = ["21:00"];
       decidedBy += " + HS";
@@ -141,6 +166,31 @@ export function parseSig(raw: string): ParsedSig {
     notes.push("Timing unclear — please confirm.");
   }
 
+  // "8 hourly" and "q8h" are common on Indian prescriptions.
+  if (!dose && times.length === 1 && /\b(?:Q\s*\d+\s*H|\d+\s*(?:HRLY|HOURLY|HRS?|HR))\b/.test(upper)) {
+    const m = upper.match(/\bQ?\s*(\d+)\s*(?:H|HR|HRS|HRLY|HOURLY)\b/);
+    const hours = Number(m?.[1] ?? 0);
+    if (hours >= 4 && hours <= 24) {
+      times = everyNHours(hours);
+      confidence = 0.9;
+      decidedBy = `every ${hours} hours`;
+    }
+  }
+
+  // A number in front of the frequency is the dose count: "2 BD", "1 OD".
+  if (!dose) {
+    const unit = upper.match(/\b([1-4])\s*(?:TAB(?:LET)?S?|CAP(?:SULE)?S?)?\s*(?:OD|BD|TDS|TID|QID|HS)\b/);
+    if (unit) unitsPerDose = Number(unit[1]);
+  }
+
+  // A written clock time beats a guessed slot: "1 OD AC 7 AM" is 7 AM, not 8.
+  const explicit = clockTimes(text);
+  if (explicit.length > 0 && explicit.length >= times.length) {
+    times = explicit;
+    confidence = Math.max(confidence, 0.9);
+    decidedBy = `written time ${explicit.join(", ")}`;
+  }
+
   if (relationToFood === "after") times = times.map((t) => shift(t, 30));
   if (relationToFood === "before") times = times.map((t) => shift(t, -30));
 
@@ -160,21 +210,58 @@ export function doseLabelFor(units: number, form: string): string {
 
 const HEADER = /doctor|clinic|hospital|patient|age|sex|date|address|phone|diagnosis|advice|follow|signature|registration|reg\.?\s*no|rx|prescription/i;
 
-export function parsePrescriptionText(text: string): ExtractedMedicine[] {
+const PARENTERAL = /\b(?:IV|I\.V\.?|IM|I\.M\.?|INJ|INJECTION|INFUSION|INTRAVENOUS|INTRAMUSCULAR)\b/i;
+const SUPPLY = /\b(?:SYRINGE|NEEDLE|CANNULA|PLASTER|GLOVES|SWAB|SCALP\s*VEIN|IV\s*SET|DRIP\s*SET)\b/i;
+const FLUID = /\b(?:NORMAL\s+SALINE|SALINE|RINGER|DEXTROSE|DNS|D5)\b/i;
+
+export interface IgnoredLine {
+  line: string;
+  reason: string;
+}
+
+export interface ParsedPrescription {
+  medicines: ExtractedMedicine[];
+  ignored: IgnoredLine[];
+}
+
+/**
+ * Parse lines into medicines, and keep a record of things we deliberately did
+ * not schedule. Hospital drips and consumables must never land on a home
+ * schedule just because OCR found them.
+ */
+export function parsePrescription(text: string): ParsedPrescription {
   const lines = text
     .split(/\r?\n/)
     .map((l) => l.trim())
     .filter(Boolean);
 
   const out: ExtractedMedicine[] = [];
+  const ignored: IgnoredLine[] = [];
 
   for (const line of lines) {
     if (line.length < 5) continue;
     if (HEADER.test(line) && !/\d+\s*(mg|mcg|ml)/i.test(line)) continue;
 
-    const formMatch = line.match(/\b(tab|tablet|cap|capsule|syp|syrup|inj|injection|drops?|oint|gel|cream)\b\.?/i);
-    const hasStrength = /\d+(?:\.\d+)?\s*(mg|mcg|g|ml|iu)\b/i.test(line);
-    if (!formMatch && !hasStrength) continue;
+    const hasStrengthEarly = /\d+(?:\.\d+)?\s*(mg|mcg|g|ml|iu)\b/i.test(line);
+    const formMatch = line.match(
+      /\b(tab|tablet|cap|capsule|syp|syrup|inj|injection|drops?|oint|gel|cream|inhaler|spray|sachet|powder)\b\.?/i,
+    );
+
+    // Non-oral routes and supplies: surface them, never schedule them.
+    if (PARENTERAL.test(line)) {
+      ignored.push({ line, reason: "given by a clinician (IV/IM) — not a home dose" });
+      continue;
+    }
+    if (SUPPLY.test(line)) {
+      ignored.push({ line, reason: "medical supply, not a medicine" });
+      continue;
+    }
+    if (FLUID.test(line) && (/ml\b/i.test(line) || PARENTERAL.test(line))) {
+      ignored.push({ line, reason: "IV fluid — not scheduled at home" });
+      continue;
+    }
+
+    if (!formMatch && !hasStrengthEarly) continue;
 
     const afterForm = formMatch
       ? line.slice((formMatch.index ?? 0) + formMatch[0].length)
@@ -184,15 +271,36 @@ export function parsePrescriptionText(text: string): ExtractedMedicine[] {
     if (!brandMatch) continue;
     const brand = brandMatch[1].replace(/[-/]+$/, "");
     if (brand.length < 2) continue;
-    if (/^(mg|ml|mcg|tablet|capsule|syrup)$/i.test(brand)) continue;
+    if (/^(mg|ml|mcg|tablet|capsule|syrup|od|bd|tds)$/i.test(brand)) continue;
+
+    const formEnd = formMatch ? (formMatch.index ?? 0) + formMatch[0].length : 0;
+    const brandEnd = formEnd + (brandMatch.index ?? 0) + brandMatch[0].length;
 
     const strengthMatch = line.match(/(\d+(?:\.\d+)?)\s*(mg|mcg|g|ml|iu)\b/i);
-    const strength = strengthMatch ? `${strengthMatch[1]} ${strengthMatch[2].toLowerCase()}` : undefined;
+    let strength = strengthMatch ? `${strengthMatch[1]} ${strengthMatch[2].toLowerCase()}` : undefined;
+    let strengthFromName = false;
+    if (!strength) {
+      // "Cap. Pan 40" means 40 mg in Indian practice.
+      const trailing = line.slice(brandEnd);
+      const bare = trailing.match(/^\s*(?:[:-]\s*)?(\d{2,4})\b(?!\s*-)/);
+      if (bare) {
+        strength = `${bare[1]} mg`;
+        strengthFromName = true;
+      }
+    }
 
     const sig = parseSig(line);
     const { salts, known } = saltsFor(brand);
     const notes = [...sig.notes];
-    if (!known) notes.push("Brand not in our list — check the salt before saving.");
+    if (strengthFromName) notes.push(`Strength read as ${strength} from the name — check it.`);
+    if (!known) {
+      const suggestion = suggestBrand(brand);
+      notes.push(
+        suggestion
+          ? `Not in our brand list. Did you mean “${suggestion[0].toUpperCase() + suggestion.slice(1)}”? Check the spelling.`
+          : "Brand not in our list — check the salt before saving.",
+      );
+    }
 
     const form = formMatch ? formMatch[1].toLowerCase() : "tablet";
 
@@ -214,10 +322,16 @@ export function parsePrescriptionText(text: string): ExtractedMedicine[] {
 
   // Merge obvious duplicates on the same line set
   const seen = new Set<string>();
-  return out.filter((m) => {
+  const medicines = out.filter((m) => {
     const key = `${m.brand.toLowerCase()}|${m.strength ?? ""}|${m.rawSig.toLowerCase()}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
+
+  return { medicines, ignored };
+}
+
+export function parsePrescriptionText(text: string): ExtractedMedicine[] {
+  return parsePrescription(text).medicines;
 }

@@ -87,11 +87,18 @@ await reset();
   await page.context().close();
 }
 
-// 3. Upload
+// 3. Upload, with the sample photo and a crop drawn around the medicine lines
 {
   const page = await newPage(1440, 1050);
   await page.goto(BASE + "/upload", { waitUntil: "networkidle" });
-  await page.waitForTimeout(500);
+  await page.getByRole("button", { name: "Load sample photo" }).click();
+  await page.waitForSelector("#rx-preview", { timeout: 15000 });
+  const box = await page.locator("#rx-preview").boundingBox();
+  await page.mouse.move(box.x + box.width * 0.06, box.y + box.height * 0.18);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.95, box.y + box.height * 0.6, { steps: 8 });
+  await page.mouse.up();
+  await page.waitForTimeout(400);
   await shot(page, "upload.png");
   await page.context().close();
 }

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { parseSig, parsePrescriptionText } from "../lib/parse/sig";
+import { parseSig, parsePrescription, parsePrescriptionText } from "../lib/parse/sig";
 import { detectFlags } from "../lib/checks";
 import type { DB, Medicine } from "../lib/types";
 
@@ -68,6 +68,34 @@ ok("AC shifts before meals", () => {
   assert.deepEqual(r.times, ["07:30"]);
 });
 
+ok("a written clock time wins over the guessed slot", () => {
+  const r = parseSig("Cap. Pan 40mg 1 OD AC 7 AM");
+  assert.deepEqual(r.times, ["06:30"]);
+  assert.match(r.decidedBy, /written time/);
+});
+
+ok("8hrly becomes a three-times-a-day schedule", () => {
+  const r = parseSig("Tab. X 500mg 8hrly x 5 days");
+  assert.deepEqual(r.times, ["08:00", "16:00"]);
+});
+
+ok("1/2 is a half tablet, not a blood pressure", () => {
+  const r = parseSig("Tab. X 5mg 1/2-0-1/2 PC");
+  assert.equal(r.unitsPerDose, 0.5);
+  assert.equal(r.times.length, 2);
+});
+
+ok("a date is not a dose pattern", () => {
+  const r = parseSig("Tab. X 5mg 17-7-24");
+  assert.equal(r.times.length, 1);
+});
+
+ok("a count before BD is the number of tablets", () => {
+  const r = parseSig("Tab. X 500mg 2 BD PC");
+  assert.equal(r.unitsPerDose, 2);
+  assert.equal(r.times.length, 2);
+});
+
 console.log("\nPrescription lines");
 
 const sample = `Tab. Dolo 650mg          1-1-1 PC      x 3 days
@@ -87,6 +115,32 @@ ok("reads three medicines from the demo prescription", () => {
 ok("ignores clinic header lines", () => {
   const meds = parsePrescriptionText(`Dr. R. Kumar, MBBS\nPatient: Lakshmi, Age 72\n\nTab. Amlodipine 5mg 1-0-0 AC x 30 days`);
   assert.equal(meds.length, 1);
+});
+
+ok("Cap. Pan 40 fills in 40 mg from the name", () => {
+  const meds = parsePrescriptionText("Cap. Pan 40 1 OD AC 7 AM");
+  assert.equal(meds.length, 1);
+  assert.equal(meds[0].brand, "Pan");
+  assert.equal(meds[0].strength, "40 mg");
+  assert.match(meds[0].notes.join(" "), /check it/i);
+});
+
+ok("hospital IVs and supplies are reported, never scheduled", () => {
+  const parsed = parsePrescription(`IV Flagyl 500mg x1 Stat
+5ml Syringe 3
+Normal Saline 500ml Stat
+Tab. Pan 40 1 OD AC 7 AM`);
+  assert.equal(parsed.medicines.length, 1);
+  assert.equal(parsed.medicines[0].brand, "Pan");
+  assert.equal(parsed.ignored.length, 3);
+  assert.match(parsed.ignored[0].reason, /clinician/);
+  assert.match(parsed.ignored[1].reason, /supply/);
+});
+
+ok("a near-miss brand gets a question, not a silent rename", () => {
+  const meds = parsePrescriptionText("Tab. Ecosprln 75mg 1-0-0 AC x 30 days");
+  assert.equal(meds[0].brand, "Ecosprln");
+  assert.match(meds[0].notes.join(" "), /Ecosprin/);
 });
 
 console.log("\nSafety checks");

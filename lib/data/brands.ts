@@ -83,6 +83,47 @@ export function saltsFor(brand: string): { salts: string[]; known: boolean } {
   return { salts: [key], known: false };
 }
 
+/** Levenshtein distance, capped so long OCR garbage stays cheap. */
+function distance(a: string, b: string): number {
+  if (Math.abs(a.length - b.length) > 2) return 3;
+  const rows = a.length + 1;
+  const cols = b.length + 1;
+  let prev = Array.from({ length: cols }, (_, j) => j);
+  let curr = new Array<number>(cols).fill(0);
+
+  for (let i = 1; i < rows; i += 1) {
+    curr[0] = i;
+    for (let j = 1; j < cols; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
+    }
+    [prev, curr] = [curr, prev];
+  }
+  return prev[cols - 1];
+}
+
+/**
+ * Suggest a known brand for an OCR spelling, never replace it.
+ * Only close matches with the same first letter qualify; a wrong guess about
+ * a drug name is worse than no guess, so this is displayed as a question.
+ */
+export function suggestBrand(brand: string): string | null {
+  const key = normalizeBrand(brand);
+  if (key.length < 4) return null;
+
+  const allowed = key.length >= 7 ? 2 : 1;
+  let best: { name: string; d: number } | null = null;
+
+  for (const name of Object.keys(BRAND_SALTS)) {
+    if (name[0] !== key[0]) continue;
+    if (Math.abs(name.length - key.length) > allowed) continue;
+    const d = distance(key, name);
+    if (d <= allowed && (!best || d < best.d)) best = { name, d };
+  }
+
+  return best?.name ?? null;
+}
+
 export const DRUG_CLASS: Record<string, string> = {
   ibuprofen: "NSAID",
   diclofenac: "NSAID",

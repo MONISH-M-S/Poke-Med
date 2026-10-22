@@ -16,9 +16,11 @@ family sees what happened — including the doses that were missed.
 
 ## What it does
 
-1. **Scan a prescription.** A photo is read by a vision model (or by browser OCR), and the doctor's shorthand is
-   decoded — `1-0-1`, `BD`, `TDS`, `HS`, `SOS`, `PC`, `AC`, `x 30 days`.
+1. **Scan a prescription.** Photograph the page, drag a box around the medicine lines, and browser OCR reads just
+   that box. A vision model is used instead when `OPENAI_API_KEY` is set. The doctor's shorthand is then decoded —
+   `1-0-1`, `BD`, `TDS`, `HS`, `SOS`, `PC`, `AC`, `7 AM`, `8hrly`, `x 30 days`, `½`.
 2. **The caregiver confirms.** Every extracted line is editable. Nothing is scheduled until a human says it is right.
+   Hospital-only lines (IV/IM/injections) and supplies are reported separately and never put on a home schedule.
 3. **A schedule is built.** Times are grouped into Morning / Afternoon / Night, with food instructions and course
    length. `SOS` medicines stay as-needed and never get a fixed slot.
 4. **The elder gets one screen.** Huge text, a spoken reminder, and one big **Taken** button. Tamil and Hindi
@@ -41,6 +43,10 @@ family sees what happened — including the doses that were missed.
 | Two doors: one PIN each | Confirming the prescription |
 |---|---|
 | ![Sign in](docs/login.png) | ![Review](docs/review.png) |
+
+| Crop to the medicine lines |
+|---|
+| ![Upload](docs/upload.png) |
 
 | Missed-dose alert |
 |---|
@@ -78,15 +84,39 @@ Optional environment (see `.env.example`):
 Useful scripts:
 
 ```bash
-npm test         # 14 checks: shorthand decoder, prescription parsing, safety rules
+npm test         # 22 checks: shorthand decoder, prescription parsing, safety rules
 npm run build    # production build
+npm run ocr:bench -- "priscrip'"   # local OCR benchmark; writes only to data/ocr-bench/
+npm run ocr:lab -- "priscrip'"     # compare segmentation and preprocessing options
 ```
 
 The **Demo** button in the bottom-right corner moves the clock (jump to the next dose, skip to the next missed dose), resets
 the seven-day history, and returns to real time. It is not part of the product.
 
 For a fully offline demo: **New prescription → Use a sample → Read these lines**. No external service is involved.
-For the photo path, **Load sample photo → Read prescription** runs real OCR in the browser.
+For the photo path, **Load sample photo → Read prescription** runs real OCR in the browser. Dragging a box around the
+medicine lines before reading is the single biggest accuracy win on a phone photo.
+
+---
+
+## The reader, honestly
+
+The reader has two jobs, and only the second one is allowed to make decisions:
+
+1. **Read** the page into text — a vision model if configured, otherwise Tesseract.js in the browser.
+2. **Decode** that text with deterministic rules, unit-tested in `npm test`.
+
+A local benchmark (`scripts/ocr-bench.mjs`) runs the real upload screen on four real WhatsApp prescription photos.
+The result on this build is **0 of 4 photos yielded a medicine line** with browser OCR alone. The photos are
+387–1019 px, and two are handwriting; Tesseract does not read cursive. Cropping, upscaling and a grayscale contrast
+stretch make the text visibly better (`scripts/ocr-lab.mjs`), but not into a dose anyone should trust.
+
+The printed sample that ships with the demo parses **3 of 3** medicines, and that is the honest boundary: clean print
+works, handwriting needs a vision model. The app does not pretend otherwise — when OCR finds nothing it keeps the text
+on screen, says why, and asks you to type the lines. Every line still needs a human confirmation.
+
+The benchmark and lab write only to `data/ocr-bench/` and `data/ocr-lab/`, both git-ignored. The photos themselves are
+never uploaded by these scripts and are not in the repository.
 
 ---
 

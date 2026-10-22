@@ -13,6 +13,7 @@ type Stored = {
   rawText: string;
   image?: string | null;
   mode?: string;
+  ignored?: { line: string; reason: string }[];
 };
 
 const BASE_TIMES = [
@@ -38,6 +39,7 @@ export default function ReviewPage() {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [rawText, setRawText] = useState("");
   const [image, setImage] = useState<string | null>(null);
+  const [ignored, setIgnored] = useState<{ line: string; reason: string }[]>([]);
   const [showRaw, setShowRaw] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +54,7 @@ export default function ReviewPage() {
       const parsed = JSON.parse(stored) as Stored;
       setRawText(parsed.rawText ?? "");
       setImage(parsed.image ?? null);
+      setIgnored(parsed.ignored ?? []);
       setRows(
         parsed.medicines.map((m, i) => ({
           ...m,
@@ -174,6 +177,25 @@ export default function ReviewPage() {
               </pre>
             )}
           </div>
+
+          {ignored.length > 0 && (
+            <div className="card p-4">
+              <p className="label">Not scheduled</p>
+              <ul className="mt-2 space-y-2 text-xs leading-relaxed text-muted">
+                {ignored.map((item, index) => (
+                  <li key={`${index}_${item.line}`}>
+                    <span className="font-semibold text-ink">{item.line}</span>
+                    <br />
+                    {item.reason}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-3 text-[11px] leading-snug text-muted">
+                Hospital drips, injections and supplies are kept off the home schedule on purpose. If a clinician asked
+                you to continue one at home, add it as a typed line.
+              </p>
+            </div>
+          )}
         </aside>
 
         <section className="space-y-4">

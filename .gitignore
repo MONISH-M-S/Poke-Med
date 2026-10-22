@@ -9,5 +9,7 @@ data/uploads/*
 *.tsbuildinfo
 next-env.d.ts
 
-# Personal prescription photos — never commit these.
+# Local OCR benchmark output and personal prescription photos: never commit.
+data/ocr-bench/
+data/ocr-lab/
 priscrip'/
