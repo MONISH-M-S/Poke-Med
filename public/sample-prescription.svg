@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1180" viewBox="0 0 900 1180">
+  <rect width="900" height="1180" fill="#ffffff"/>
+  <rect x="28" y="28" width="844" height="1124" fill="none" stroke="#c9d3cf" stroke-width="2" rx="6"/>
+
+  <text x="60" y="92" font-family="Georgia, serif" font-size="30" font-weight="bold" fill="#13201e">Dr. R. Meenakshi</text>
+  <text x="60" y="120" font-family="Georgia, serif" font-size="17" fill="#5b6b68">MBBS, MD (General Medicine) · Reg. No. 48291</text>
+  <text x="60" y="146" font-family="Georgia, serif" font-size="17" fill="#5b6b68">City Clinic, Anna Nagar, Chennai 600040</text>
+  <text x="60" y="172" font-family="Georgia, serif" font-size="17" fill="#5b6b68">Mon–Sat, 9:00 AM – 1:00 PM</text>
+
+  <line x1="60" y1="192" x2="840" y2="192" stroke="#13201e" stroke-width="1.5"/>
+
+  <text x="60" y="232" font-family="Georgia, serif" font-size="19" fill="#13201e">Name: Lakshmi R.</text>
+  <text x="420" y="232" font-family="Georgia, serif" font-size="19" fill="#13201e">Age: 72</text>
+  <text x="600" y="232" font-family="Georgia, serif" font-size="19" fill="#13201e">Date: 22-10-2026</text>
+
+  <text x="60" y="320" font-family="Georgia, serif" font-size="52" font-style="italic" fill="#0d6b5f">Rx</text>
+
+  <g font-family="'Courier New', monospace" font-size="27" fill="#13201e">
+    <text x="80" y="400">Tab. Dolo 650mg</text>
+    <text x="470" y="400">1-1-1 PC</text>
+    <text x="690" y="400">x 3 days</text>
+
+    <text x="80" y="470">Tab. Ibuprofen 400mg</text>
+    <text x="470" y="470">BD PC</text>
+    <text x="690" y="470">x 3 days</text>
+
+    <text x="80" y="540">Tab. Metformin 500mg</text>
+    <text x="470" y="540">1-0-1 PC</text>
+    <text x="690" y="540">x 30 days</text>
+  </g>
+
+  <line x1="80" y1="580" x2="800" y2="580" stroke="#dde3df" stroke-width="1"/>
+
+  <text x="80" y="625" font-family="Georgia, serif" font-size="19" fill="#5b6b68">Advice: plenty of fluids. Review in 3 days if fever continues.</text>
+  <text x="80" y="660" font-family="Georgia, serif" font-size="19" fill="#5b6b68">Do not stop the antibiotic early.</text>
+
+  <text x="80" y="900" font-family="Georgia, serif" font-size="16" fill="#8a9a96">Not valid for pharmacy dispensing. Sample generated for the PokéMed prototype.</text>
+
+  <line x1="580" y1="1050" x2="820" y2="1050" stroke="#13201e" stroke-width="1.5"/>
+  <text x="580" y="1080" font-family="Georgia, serif" font-size="17" fill="#5b6b68">Signature</text>
+</svg>

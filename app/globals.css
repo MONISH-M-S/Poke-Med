@@ -1,0 +1,124 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --paper: #f6f7f4;
+  --ink: #13201e;
+}
+
+html,
+body {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+}
+
+*:focus-visible {
+  outline: 3px solid #0f766e;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+@layer components {
+  .container-app {
+    @apply mx-auto w-full max-w-[1120px] px-5 sm:px-8;
+  }
+
+  .card {
+    @apply rounded-2xl border border-line bg-white shadow-card;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition
+      disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply btn bg-brand-600 text-white hover:bg-brand-700;
+  }
+
+  .btn-ghost {
+    @apply btn border border-line bg-white text-ink hover:bg-brand-50;
+  }
+
+  .btn-danger {
+    @apply btn bg-alert text-white hover:brightness-110;
+  }
+
+  .btn-big {
+    @apply rounded-2xl px-8 py-5 text-2xl font-bold;
+  }
+
+  .pill {
+    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold;
+  }
+
+  .label {
+    @apply text-xs font-semibold uppercase tracking-wider text-muted;
+  }
+
+  .field {
+    @apply w-full rounded-xl border border-line bg-white px-3 py-2 text-sm text-ink outline-none
+      focus:border-brand-500 focus:ring-2 focus:ring-brand-100;
+  }
+
+  .h1 {
+    @apply text-2xl font-bold tracking-tight text-ink sm:text-3xl;
+  }
+
+  .h2 {
+    @apply text-lg font-bold tracking-tight text-ink;
+  }
+
+  .muted {
+    @apply text-sm text-muted;
+  }
+}
+
+.elder-body {
+  background: #fbfbf8;
+}
+
+.elder-name {
+  font-size: clamp(2.6rem, 9vw, 4.5rem);
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+}
+
+.elder-dose {
+  font-size: clamp(1.6rem, 5vw, 2.4rem);
+  line-height: 1.2;
+}
+
+.elder-taken {
+  width: 100%;
+  min-height: 118px;
+  font-size: clamp(2rem, 6vw, 2.75rem);
+  border-radius: 28px;
+  background: #0d6b5f;
+  color: white;
+  font-weight: 800;
+  box-shadow: 0 10px 0 #083b35;
+  transition: transform 0.06s ease;
+}
+
+.elder-taken:active {
+  transform: translateY(3px);
+  box-shadow: 0 6px 0 #083b35;
+}
+
+.elder-taken:disabled {
+  background: #9fb3ae;
+  box-shadow: 0 10px 0 #7d918c;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
