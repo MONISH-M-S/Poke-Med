@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { verifySession } from "./auth-token";
-import { isElderSessionRevoked } from "./pairing";
+import { adoptElderSession, isElderSessionRevoked } from "./pairing";
 import { COOKIE_NAME, ELDER_COOKIE_NAME } from "./demo-auth";
 
 /**
@@ -18,13 +18,19 @@ export async function rejectRevokedElder(): Promise<NextResponse | null> {
   if (caregiver?.role === "caregiver") return null;
 
   const elder = await verifySession(store.get(ELDER_COOKIE_NAME)?.value);
-  if (elder?.role === "elder" && isElderSessionRevoked(elder.sid)) {
-    const res = NextResponse.json(
-      { error: "This device was removed. Ask your family to pair it again." },
-      { status: 401 },
-    );
-    res.cookies.set(ELDER_COOKIE_NAME, "", { path: "/", maxAge: 0 });
-    return res;
+  if (elder?.role === "elder") {
+    if (isElderSessionRevoked(elder.sid)) {
+      const res = NextResponse.json(
+        { error: "This device was removed. Ask your family to pair it again." },
+        { status: 401 },
+      );
+      res.cookies.set(ELDER_COOKIE_NAME, "", { path: "/", maxAge: 0 });
+      return res;
+    }
+
+    // A signed cookie is proof of pairing, so a device missing from the store
+    // (older pairing, cleared data) becomes visible again for the caregiver.
+    adoptElderSession(elder.sid, elder.pid);
   }
 
   return null;

@@ -3,6 +3,7 @@ node_modules
 out
 .env*.local
 data/db.json*
+data/elder-sessions.json
 data/uploads/*
 !data/uploads/.gitkeep
 .tools

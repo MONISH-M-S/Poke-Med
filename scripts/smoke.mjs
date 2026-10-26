@@ -172,12 +172,13 @@ function setCookieFrom(res) {
     JSON.stringify(devicesData.data),
   );
 
-  // Caregiver can revoke the device
-  if (devicesData.data?.[0]?.token) {
+  // Caregiver can revoke the device (newest pair, since older ones may linger)
+  const newest = [...(devicesData.data ?? [])].sort((a, b) => b.createdAt - a.createdAt)[0];
+  if (newest?.token) {
     const revoke = await fetch(BASE + "/api/pair/devices", {
       method: "DELETE",
       headers: authHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ token: devicesData.data[0].token }),
+      body: JSON.stringify({ token: newest.token }),
     });
     const revokeData = await revoke.json();
     check(

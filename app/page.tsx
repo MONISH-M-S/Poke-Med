@@ -60,8 +60,8 @@ export default function Dashboard() {
     setTimeout(() => setNudge(null), 4000);
   }
 
-  async function loadDevices() {
-    setDevicesLoading(true);
+  async function loadDevices(showSpinner = true) {
+    if (showSpinner) setDevicesLoading(true);
     try {
       const res = await fetch("/api/pair/devices", { cache: "no-store" });
       if (res.ok) {
@@ -71,7 +71,7 @@ export default function Dashboard() {
     } catch {
       // ignore
     } finally {
-      setDevicesLoading(false);
+      if (showSpinner) setDevicesLoading(false);
     }
   }
 
@@ -113,6 +113,17 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadDevices();
+    // A phone can pair at any moment, on another device. Keep the list honest
+    // without showing the loading skeleton on every refresh.
+    const refresh = () => loadDevices(false);
+    const id = setInterval(refresh, 5000);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
   }, []);
 
   if (error) {
