@@ -8,12 +8,13 @@ const PEOPLE = {
     name: "Arjun",
     initial: "A",
     subtitle: "The family dashboard",
-    detail: "Scan, schedule, report, and her screen",
+    detail: "Scan, schedule, report, and paired phones",
     demoPin: "2468",
   },
 } as const;
 
-const PIN_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
+// 1–9 then a centred 0, the way a phone keypad looks.
+const PIN_KEYS: (string | null)[] = ["1", "2", "3", "4", "5", "6", "7", "8", "9", null, "0", null];
 
 export default function LoginPage() {
   const router = useRouter();
@@ -106,17 +107,21 @@ export default function LoginPage() {
           {error && <p className="text-sm text-alert mb-4 text-center">{error}</p>}
 
           <div className="grid grid-cols-3 gap-3 mb-3">
-            {PIN_KEYS.map((k) => (
-              <button
-                key={k}
-                type="button"
-                onClick={() => addDigit(k)}
-                disabled={busy || pin.length >= 4}
-                className="h-12 rounded-xl border border-line bg-white text-xl font-semibold text-ink hover:bg-brand-50 active:scale-[0.98] transition disabled:opacity-50"
-              >
-                {k}
-              </button>
-            ))}
+            {PIN_KEYS.map((k, index) =>
+              k === null ? (
+                <div key={`gap-${index}`} aria-hidden="true" />
+              ) : (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => addDigit(k)}
+                  disabled={busy || pin.length >= 4}
+                  className="h-12 rounded-xl border border-line bg-white text-xl font-semibold text-ink hover:bg-brand-50 active:scale-[0.98] transition disabled:opacity-50"
+                >
+                  {k}
+                </button>
+              ),
+            )}
           </div>
           <div className="flex gap-3">
             <button

@@ -19,7 +19,7 @@ medicines were actually taken. The result is missed treatment and avoidable hosp
 
 - The caregiver photographs the prescription. OCR extracts medicine names, dose and timing, and the caregiver fixes
   any mistakes before saving.
-- Two separate PIN doors: the elder's opens only her medicine screen, the caregiver's opens the family dashboard.
+- Two separate doors: Arjun signs in with a PIN; Lakshmi's phone is paired once with a QR code, so she never types anything.
 - PokéMed builds the schedule and prompts at dose time on the elder's screen.
 - The elder's screen has huge text, a spoken reminder, and one big **Taken** button.
 - Every dose is logged as taken or missed, with a timestamp.
@@ -47,7 +47,7 @@ The two things judges remember:
 | Time | On screen | Say |
 |---|---|---|
 | 0:00 | Medicine box photo | "Love shouldn't depend on a phone call asking 'did you take your medicine?'" |
-| 0:05 | Sign-in screen, two PIN doors | "Two PINs. Lakshmi's opens only her screen. Arjun's opens the dashboard." |
+| 0:05 | Sign-in screen, then **Set up phone** with a QR | "Arjun signs in with a PIN. His mother's phone is paired with one QR code — she never types anything." |
 | 0:10 | Caregiver uploads the sample prescription | "Arjun lives in another city. His mother's prescription is a photo on his phone." |
 | 0:20 | Decoder shows `1-0-1 PC` → morning + night, after food | "It reads the doctor's shorthand — `1-0-1` means morning and night — and builds a real schedule." |
 | 0:35 | Caregiver fixes one field | "He corrects one line before saving. The human stays in the loop. This is decision support, not medical advice." |
@@ -111,7 +111,7 @@ Rehearse to 2:15–2:40. Never let the live demo pass three minutes.
 Generated with `node scripts/shots.mjs` into `docs/`:
 
 - `dashboard.png` — caregiver view, week, flags
-- `login.png` — the two PIN doors
+- `login.png` — the caregiver sign-in
 - `upload.png` — photo or typed prescription
 - `review.png` — the confirmation screen
 - `schedule.png` — the day, grouped

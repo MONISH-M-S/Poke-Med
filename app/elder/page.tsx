@@ -28,6 +28,7 @@ const T = {
     language: "Language",
     notConfirmed: "Not confirmed yet",
     takeIt: "Press this after you take it",
+    nudgeFrom: "sent you a reminder",
   },
   ta: {
     timeFor: "உங்கள் மருந்து நேரம்",
@@ -47,6 +48,7 @@ const T = {
     language: "மொழி",
     notConfirmed: "இன்னும் உறுதி செய்யவில்லை",
     takeIt: "எடுத்த பிறகு இதை அழுத்துங்கள்",
+    nudgeFrom: "உங்களுக்கு நினைவூட்டல் அனுப்பியுள்ளார்",
   },
   hi: {
     timeFor: "आपकी दवा का समय",
@@ -66,6 +68,7 @@ const T = {
     language: "भाषा",
     notConfirmed: "अभी पुष्टि नहीं हुई",
     takeIt: "दवा लेने के बाद इसे दबाएँ",
+    nudgeFrom: "ने आपको याद दिलाया",
   },
 } as const;
 
@@ -251,6 +254,14 @@ export default function ElderScreen() {
             </button>
           </div>
         </div>
+
+        {state.nudge && (
+          <div className="mt-5 rounded-2xl border-2 border-amber-300 bg-amber-50 px-5 py-4">
+            <p className="text-xl font-extrabold text-amber-900">
+              {state.nudge.from} {t.nudgeFrom}
+            </p>
+          </div>
+        )}
 
         <div className="mt-6 flex items-baseline justify-between">
           <p className="text-xl font-semibold text-muted">{state.elder.name}</p>

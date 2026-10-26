@@ -2,7 +2,7 @@ import type { DB, Medicine } from "./types";
 import { atTime, dateKeyOffset, now } from "./clock";
 import { generateDoses } from "./doses";
 import { hashSecret } from "./auth-hash";
-import { DEMO_CAREGIVER_PIN, DEMO_PIN } from "./demo-auth";
+import { DEMO_CAREGIVER_PIN } from "./demo-auth";
 import { newId } from "./db";
 
 /**
@@ -126,7 +126,6 @@ export function buildSeed(): DB {
         city: "Chennai",
         linkedTo: "cg_arjun",
         language: "en",
-        pinHash: hashSecret(DEMO_PIN),
       },
       {
         id: "cg_arjun",

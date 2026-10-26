@@ -5,7 +5,7 @@ import type { DB } from "./types";
 import { buildSeed } from "./seed";
 import { setClockOffset } from "./clock";
 import { hashSecret } from "./auth-hash";
-import { DEMO_CAREGIVER_PIN, DEMO_PIN } from "./demo-auth";
+import { DEMO_CAREGIVER_PIN } from "./demo-auth";
 import { withMutex } from "./mutex";
 
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -20,14 +20,22 @@ function ensureDir() {
 }
 
 /**
- * Databases created before sign-in existed have no PIN/password hashes.
- * Fill them with the demo credentials once, then write them back.
+ * Databases created before sign-in existed have no PIN hash for the caregiver.
+ * Fill it once, and drop any leftover hash on the elder: that door is closed —
+ * an elder device is added by scanning a QR code, never by typing a PIN.
  */
 function migrateAuth(db: DB): boolean {
   let changed = false;
   for (const person of db.people) {
+    if (person.role === "elder") {
+      if (person.pinHash) {
+        delete person.pinHash;
+        changed = true;
+      }
+      continue;
+    }
     if (!person.pinHash) {
-      person.pinHash = hashSecret(person.role === "elder" ? DEMO_PIN : DEMO_CAREGIVER_PIN);
+      person.pinHash = hashSecret(DEMO_CAREGIVER_PIN);
       changed = true;
     }
   }

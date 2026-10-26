@@ -8,6 +8,7 @@ const docs = path.join(root, "docs");
 fs.mkdirSync(docs, { recursive: true });
 
 let cookie = "";
+let elderCookie = "";
 
 function authHeaders(extra = {}) {
   return cookie ? { ...extra, cookie } : extra;
@@ -32,13 +33,36 @@ async function reset() {
   });
 }
 
+/** Every screenshot run starts from an empty device list. */
+async function clearDevices() {
+  const listed = await (await fetch(BASE + "/api/pair/devices", { headers: authHeaders() })).json();
+  for (const device of listed.data ?? []) {
+    await fetch(BASE + "/api/pair/devices", {
+      method: "DELETE",
+      headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ token: device.token }),
+    });
+  }
+}
+
+/** Pair a phone the way the demo does, and keep its cookie for the elder shots. */
+async function pairPhone() {
+  const created = await fetch(BASE + "/api/pair/create", { method: "POST", headers: authHeaders() });
+  const { pairingUrl } = await created.json();
+  const redeemed = await fetch(pairingUrl, { redirect: "manual" });
+  const raw = redeemed.headers.getSetCookie?.()[0] ?? redeemed.headers.get("set-cookie") ?? "";
+  elderCookie = raw.split(";")[0];
+  if (!elderCookie.startsWith("pokemed_elder_session=")) throw new Error("pairing failed: " + redeemed.status);
+}
+
 const browser = await chromium.launch();
 const errors = [];
 
-async function newPage(width, height) {
+async function newPage(width, height, { elder = false } = {}) {
   const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 2 });
-  if (cookie) {
-    const [name, ...rest] = cookie.split("=");
+  const active = elder ? elderCookie : cookie;
+  if (active) {
+    const [name, ...rest] = active.split("=");
     await ctx.addCookies([{ name, value: rest.join("="), domain: "localhost", path: "/" }]);
   }
   const page = await ctx.newPage();
@@ -66,7 +90,7 @@ async function shot(page, name) {
   await ctx.close();
 }
 
-// 2. The two-door sign-in screen (before we hold a session)
+// 2. The caregiver sign-in screen (before we hold a session)
 {
   const page = await newPage(1440, 1050);
   await page.goto(BASE + "/login", { waitUntil: "networkidle" });
@@ -76,6 +100,8 @@ async function shot(page, name) {
 }
 
 await caregiverLogin();
+await clearDevices();
+await pairPhone();
 await reset();
 
 // 3. Dashboard
@@ -145,13 +171,13 @@ await reset();
     headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ action: "nextDose" }),
   });
-  const page = await newPage(1440, 1050);
+  const page = await newPage(1440, 1050, { elder: true });
   await page.goto(BASE + "/elder", { waitUntil: "networkidle" });
   await page.waitForTimeout(900);
   await shot(page, "elder.png");
   await page.context().close();
 
-  const phone = await newPage(390, 844);
+  const phone = await newPage(390, 844, { elder: true });
   await phone.goto(BASE + "/elder", { waitUntil: "networkidle" });
   await phone.waitForTimeout(900);
   await phone.screenshot({ path: path.join(docs, "elder-phone.png") });

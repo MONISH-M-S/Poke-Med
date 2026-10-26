@@ -74,6 +74,12 @@ export interface Prescription {
   createdAt: string;
 }
 
+export interface Nudge {
+  /** Real time (epoch ms), not the demo clock — a nudge is "now" on both screens. */
+  at: number;
+  from: string;
+}
+
 export interface DB {
   version: 1;
   people: Person[];
@@ -83,6 +89,7 @@ export interface DB {
   alerts: Alert[];
   prescriptions: Prescription[];
   clockOffsetMinutes: number;
+  lastNudge?: Nudge;
 }
 
 export interface ExtractedMedicine {
@@ -142,4 +149,6 @@ export interface AppState {
   flags: Flag[];
   alerts: Alert[];
   nextDose: DoseView | null;
+  /** Set when the caregiver pressed "Send a nudge" in the last five minutes. */
+  nudge?: Nudge;
 }

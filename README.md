@@ -40,7 +40,7 @@ family sees what happened — including the doses that were missed.
 |---|---|
 | ![Dashboard](docs/dashboard.png) | ![Elder screen](docs/elder-phone.png) |
 
-| Two doors: one PIN each | Confirming the prescription |
+| Caregiver sign-in | Confirming the prescription |
 |---|---|
 | ![Sign in](docs/login.png) | ![Review](docs/review.png) |
 
@@ -62,24 +62,33 @@ npm run seed     # a synthetic elder, caregiver and a realistic week of history
 npm run dev      # http://localhost:3000
 ```
 
-Sign in with a PIN — no email, no password to type on a phone:
+Arjun signs in with a PIN — no email, no password to type on a phone. Lakshmi never signs in at all: her phone is
+added by scanning a QR code from Arjun's dashboard.
 
-| Who | PIN | Sees |
+| Who | How | Sees |
 |---|---|---|
-| Lakshmi (elder) | `1234` | Her own screen only: today's doses and the **Taken** button |
-| Arjun (caregiver) | `2468` | Everything: scan, schedule, report, flags, and a preview of her screen |
+| Arjun (caregiver) | PIN `2468` | Everything: scan, schedule, report, flags, and the paired-phones card |
+| Lakshmi (elder) | Scan the QR from **Set up phone** | Her own screen only: today's doses and the **Taken** button |
 
-The two PINs are separate doors. Lakshmi's session is confined to `/elder`, `/api/state` and `/api/doses`; anything
-else redirects or returns 403. Arjun's session can reach the whole app. PINs are scrypt-hashed in the data file, and
-the session is an HMAC-signed, http-only cookie (seven days). This is prototype auth: the demo PINs are printed on the
-sign-in screen, and there is no account recovery.
+The two doors are separate. A paired phone can reach `/elder` and its three endpoints (`/api/state`, `/api/doses`,
+`/api/auth/me`); anything else redirects or returns 403. A caregiver session is an HMAC-signed, http-only cookie
+(seven days). A phone gets a 180-day cookie carrying a session id that Arjun can revoke from the dashboard — the
+moment he does, that phone's next request is refused. Pairing links are single-use and expire after five minutes.
+
+The caregiver PIN is scrypt-hashed in the data file and printed on the sign-in screen. There is no account recovery;
+this is prototype auth.
+
+The QR encodes this machine's LAN address, so the phone has to be on the same Wi-Fi network. If the link needs to be
+something else — a tunnel, a fixed hostname — set `NEXT_PUBLIC_APP_URL` before starting the server.
 
 Optional environment (see `.env.example`):
 
 - `OPENAI_API_KEY` — reads prescription photos with a vision model.
 - Without it, photos are read in the browser with Tesseract.js, or you can paste prescription text.
-- `AUTH_SECRET` — signs the session cookie. A demo fallback is built in; set a long random value before deploying
-  anywhere real.
+- `AUTH_SECRET` — signs session cookies. You do not need to set it: the first `npm run dev`, `build` or `start`
+  generates a random one in `.env.local` (git-ignored), so the repository ships no usable secret.
+- `POKEMED_TRUST_PROXY=1` — set this only behind a proxy that overwrites `x-forwarded-for`; otherwise the sign-in
+  throttle ignores that header, because anyone can invent one.
 
 Useful scripts:
 
@@ -142,9 +151,10 @@ schedule is reproducible and explainable.
 **One clock.** Every read of "now" goes through `lib/clock.ts`. The demo panel shifts it, and the missed-dose sweep
 runs on each state read, so there is no cron job and nothing to wait for on stage.
 
-**Two doors, one app.** `middleware.ts` checks a signed session on every page and API call. An elder session can only
-reach `/elder` and her two endpoints; a caregiver session can reach everything. The PIN is the whole login — one big
-keypad, four digits, no keyboard — because the person using it may be 72 and holding the phone at arm's length.
+**Two doors, one app.** `middleware.ts` checks a signed session on every page and API call. A paired phone can only
+reach `/elder` and its three endpoints; a caregiver session can reach everything. The caregiver's whole login is a
+keypad — four digits, no keyboard. The elder never types anything: a five-minute, single-use QR link pairs her phone,
+and Arjun can see every paired device and remove it.
 
 **Safety checks compare active ingredients, not names.** `Crocin` and `Dolo` are both paracetamol, and that is
 exactly the mistake families make. The brand→salt map is deliberately small and curated.
@@ -156,7 +166,7 @@ exactly the mistake families make. The brand→salt map is deliberately small an
 | Real | Mocked or limited |
 |---|---|
 | Shorthand decoding, schedule generation, dose logging | A single elder and caregiver in the seeded data |
-| Separate elder and caregiver PIN sign-in | Prototype auth: demo PINs shown on screen, no recovery or lockout policy |
+| QR pairing, per-device list and removal | Prototype auth: one demo caregiver PIN, shown on screen; no account recovery |
 | Missed-dose detection and alerts | Alert is on the caregiver dashboard; email/push not wired by default |
 | Duplicate-salt and curated pair checks | Short curated list, not a full interaction database |
 | Seven-day adherence maths | History is seeded so the report is meaningful in a demo |
@@ -171,10 +181,11 @@ All data is synthetic. Do not enter real patient information.
 
 ## The demo, in one minute
 
-0. Sign in as Arjun with PIN `2468`. (If asked: Lakshmi's door is PIN `1234`, and it opens her screen only.)
+0. Sign in as Arjun with PIN `2468`. Open **Set up phone** and scan the QR with Lakshmi's phone — it never asks her for a PIN.
 1. Caregiver scans a prescription; the shorthand is decoded on screen; one field is corrected.
 2. The schedule appears for today.
-3. Demo → *Jump to the next dose*, then open the elder screen. It speaks the dose; **Taken** is pressed.
+3. Demo → *Jump to the next dose*, then look at Lakshmi's paired phone (the screen refreshes itself). It speaks the
+   dose; **Taken** is pressed.
 4. The caregiver dashboard turns green in the same second.
 5. Demo → *Skip to next missed dose* → the alert appears.
 6. The report shows the week.

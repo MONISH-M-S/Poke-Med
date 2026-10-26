@@ -8,7 +8,6 @@ const links = [
   { href: "/", label: "Dashboard" },
   { href: "/upload", label: "New prescription" },
   { href: "/report", label: "Report" },
-  { href: "/elder", label: "Elder screen" },
 ];
 
 type Me = { role: string; name: string } | null;

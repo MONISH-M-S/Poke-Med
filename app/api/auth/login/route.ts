@@ -6,8 +6,19 @@ import { COOKIE_NAME, SESSION_DAYS } from "@/lib/demo-auth";
 
 export const dynamic = "force-dynamic";
 
-// Small in-memory throttle: 8 failed attempts per IP per 5 minutes.
+// Small in-memory throttle: 8 failed attempts per key per 5 minutes.
 const attempts = new Map<string, { count: number; resetAt: number }>();
+
+/**
+ * `x-forwarded-for` is a request header: anyone can invent one, so rotating it
+ * would walk straight past a per-IP throttle. Only trust it behind a proxy that
+ * overwrites the header (POKEMED_TRUST_PROXY=1); otherwise throttle as one client.
+ */
+function clientKey(req: Request): string {
+  if (process.env.POKEMED_TRUST_PROXY !== "1") return "local";
+  const forwarded = req.headers.get("x-forwarded-for");
+  return forwarded?.split(",")[0]?.trim() || "local";
+}
 
 function tooMany(ip: string): boolean {
   const nowMs = Date.now();
@@ -32,7 +43,7 @@ function recordFailure(ip: string) {
 }
 
 export async function POST(req: Request) {
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+  const ip = clientKey(req);
   if (tooMany(ip)) {
     return NextResponse.json(
       { error: "Too many attempts. Wait five minutes and try again." },

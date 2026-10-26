@@ -120,6 +120,11 @@ export function buildState(db: DB): AppState {
       .filter((a) => a.personId === elder.id && !a.acknowledged)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     nextDose,
+    // Real time, not the demo clock: a nudge is "now" on both screens.
+    nudge:
+      db.lastNudge && Date.now() - db.lastNudge.at < 5 * 60_000
+        ? db.lastNudge
+        : undefined,
   };
 }
 

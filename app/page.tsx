@@ -9,8 +9,7 @@ import { useSuccessToast, useErrorToast } from "@/components/Toast";
 import type { AppState, DoseView } from "@/lib/types";
 
 export default function Dashboard() {
-  const { state, setState, error } = useAppState();
-  const [nudge, setNudge] = useState<string | null>(null);
+  const { state, setState, error, reload } = useAppState();
   const [pairingModal, setPairingModal] = useState<{ open: boolean; token?: string; url?: string }>({ open: false });
   const [devices, setDevices] = useState<Array<{ token: string; createdAt: number; deviceInfo: string }>>([]);
   const [devicesLoading, setDevicesLoading] = useState(false);
@@ -56,8 +55,19 @@ export default function Dashboard() {
   );
 
   async function nudgeElder() {
-    setNudge("A reminder is now showing on Lakshmi's screen.");
-    setTimeout(() => setNudge(null), 4000);
+    try {
+      const res = await fetch("/api/nudge", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        errorToast("Could not send the nudge", data.error);
+        return;
+      }
+      successToast("Nudge sent", `Showing on ${elder?.name ?? "their"}'s screen now`);
+      // Refetch so the state reflects the nudge we just stored.
+      void reload();
+    } catch {
+      errorToast("Could not send the nudge", "Network error");
+    }
   }
 
   async function loadDevices(showSpinner = true) {
@@ -236,12 +246,6 @@ export default function Dashboard() {
               )}
             </div>
           </div>
-        </div>
-      )}
-
-      {nudge && (
-        <div className="mt-4 rounded-xl border border-brand-100 bg-brand-50 px-4 py-3 text-sm font-semibold text-brand-700">
-          {nudge}
         </div>
       )}
 

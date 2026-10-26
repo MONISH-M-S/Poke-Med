@@ -30,15 +30,12 @@ export default function SchedulePage() {
           <p className="label">Step 3 of 3 · Schedule</p>
           <h1 className="h1 mt-1">{state.elder.name}&apos;s day</h1>
           <p className="muted mt-2">
-            Built from what the prescription said. Every dose below is now on {state.elder.name}&apos;s screen.
+            Built from what the prescription said. Every dose below is now on {state.elder.name}&apos;s phone.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href="/" className="btn-ghost">
             Dashboard
-          </Link>
-          <Link href="/elder" className="btn-primary">
-            Open {state.elder.name}&apos;s screen
           </Link>
         </div>
       </div>

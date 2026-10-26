@@ -1,8 +1,7 @@
 // HMAC secret for session cookies. Middleware runs on the edge runtime and cannot
-// read files, so the secret has to come from the environment.
-// In production, this MUST be set — no fallback allowed.
-// During `next build`, NODE_ENV=production is set, so we allow the fallback
-// but the real server will fail if not configured.
+// read files, so the secret has to come from the environment. scripts/ensure-secret.mjs
+// writes a random one to .env.local on the first `npm run dev`, `build` or `start`,
+// and Next loads that file for both the Node runtime and the middleware.
 let _authSecret: string | null = null;
 let warnedAboutFallback = false;
 
@@ -10,8 +9,7 @@ export function getAuthSecret(): string {
   if (_authSecret) return _authSecret;
   const secret = process.env.AUTH_SECRET;
   if (!secret) {
-    // Only throw at actual runtime if explicitly required
-    // Allow demo secret unless POKEMED_REQUIRE_AUTH_SECRET=1 is set
+    // A fallback keeps a bare `next start` (outside the npm scripts) working.
     const requireSecret = process.env.POKEMED_REQUIRE_AUTH_SECRET === "1";
     if (process.env.NODE_ENV === "production" && requireSecret) {
       throw new Error("AUTH_SECRET must be set in production (set POKEMED_REQUIRE_AUTH_SECRET=1 to enforce)");
@@ -23,16 +21,12 @@ export function getAuthSecret(): string {
       warnedAboutFallback = true;
       console.warn(
         "[pokemed] AUTH_SECRET is not set — using the public demo secret. " +
-          "Session cookies can be forged. Set AUTH_SECRET (and POKEMED_REQUIRE_AUTH_SECRET=1) before exposing this app.",
+          "Session cookies can be forged. Start the app with `npm start` (which generates one in .env.local), " +
+          "or set AUTH_SECRET yourself before exposing this app.",
       );
     }
     return _authSecret;
   }
   _authSecret = secret;
   return _authSecret;
-}
-
-// Backward compatibility - AUTH_SECRET is now a getter function
-export function AUTH_SECRET(): string {
-  return getAuthSecret();
 }

@@ -82,7 +82,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(login);
   }
 
-  // Caregiver can access everything including elder preview
+  // Caregiver can reach every screen. The elder screen itself needs a paired phone.
   return NextResponse.next();
 }
 
