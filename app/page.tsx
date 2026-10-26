@@ -469,7 +469,8 @@ export default function Dashboard() {
               </button>
             </div>
             <p className="mt-2 text-sm text-muted">
-              Open the camera on {elder.name}&apos;s phone and scan this QR code. The link expires in 5 minutes and works once.
+              Open the camera on {elder.name}&apos;s phone and scan this QR code. Both phones must be on the same Wi-Fi.
+              The link expires in 5 minutes and works once.
             </p>
             {pairingModal.url && (
               <div className="mt-4 flex flex-col items-center gap-3">
@@ -481,6 +482,13 @@ export default function Dashboard() {
                   />
                 </div>
                 <p className="text-xs text-muted text-center break-all">{pairingModal.url}</p>
+                <details className="w-full text-xs text-muted">
+                  <summary className="cursor-pointer">Scanning fails?</summary>
+                  <p className="mt-2">
+                    The address above has to be reachable from the phone. If it still says <code>localhost</code>, set{" "}
+                    <code>NEXT_PUBLIC_APP_URL</code> to your computer&apos;s LAN address before starting the server.
+                  </p>
+                </details>
                 <button className="btn-primary w-full" onClick={() => setPairingModal({ open: false })}>
                   Done
                 </button>
