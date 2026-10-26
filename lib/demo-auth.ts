@@ -5,3 +5,4 @@ export const DEMO_CAREGIVER_PIN = "2468";
 
 export const SESSION_DAYS = 7;
 export const COOKIE_NAME = "pokemed_session";
+export const ELDER_COOKIE_NAME = "pokemed_elder_session";

@@ -7,6 +7,7 @@ interface PairingToken {
 interface ElderSession {
   elderId: string;
   token: string;
+  sid: string;
   createdAt: number;
   deviceInfo?: string;
 }
@@ -14,6 +15,8 @@ interface ElderSession {
 // In-memory stores (demo only — would use Redis/DB in production)
 const tokens = new Map<string, PairingToken>();
 const sessions = new Map<string, ElderSession>();
+// Session ids whose cookie must stop working, even though the JWT is still valid.
+const revoked = new Set<string>();
 
 /** Create a single-use pairing token valid for 5 minutes. */
 export function createPairingToken(elderId: string): string {
@@ -38,16 +41,18 @@ export function consumePairingToken(token: string): string | null {
   return record.elderId;
 }
 
-/** Create a long-lived elder session (180 days). */
-export function createElderSession(elderId: string, deviceInfo?: string): string {
-  const sessionToken = crypto.randomUUID();
-  sessions.set(sessionToken, {
+/** Create a long-lived elder session (180 days). Returns the session id, which
+ *  is also placed in the cookie so revocation can be checked later. */
+export function createElderSession(elderId: string, deviceInfo?: string, sid?: string): string {
+  const sessionId = sid ?? crypto.randomUUID();
+  sessions.set(sessionId, {
     elderId,
-    token: sessionToken,
+    token: sessionId,
+    sid: sessionId,
     createdAt: Date.now(),
     deviceInfo,
   });
-  return sessionToken;
+  return sessionId;
 }
 
 /** Verify an elder session token. */
@@ -63,9 +68,19 @@ export function verifyElderSession(token: string | undefined): ElderSession | nu
   return session;
 }
 
-/** Revoke an elder session (by session token). */
+/** Revoke an elder session (by session token). The cookie JWT cannot be unsigned,
+ *  so the session id joins a deny-list that route handlers check. */
 export function revokeElderSession(sessionToken: string): boolean {
-  return sessions.delete(sessionToken);
+  const session = sessions.get(sessionToken);
+  if (!session) return false;
+  revoked.add(session.sid);
+  sessions.delete(sessionToken);
+  return true;
+}
+
+/** True when this device's session was removed by the caregiver. */
+export function isElderSessionRevoked(sid: string | undefined): boolean {
+  return Boolean(sid && revoked.has(sid));
 }
 
 /** List all active sessions for an elder. */

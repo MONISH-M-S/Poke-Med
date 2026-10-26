@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { consumePairingToken, createElderSession } from "@/lib/pairing";
 import { signElderSession } from "@/lib/auth-token";
 import { requestOrigin } from "@/lib/origin";
+import { ELDER_COOKIE_NAME } from "@/lib/demo-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -25,14 +26,15 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string }
 
   // Create long-lived JWT session for the elder (180 days)
   const exp = Date.now() + 180 * 24 * 60 * 60 * 1000;
-  const sessionToken = await signElderSession(elderId, elder.name, exp);
+  const sid = crypto.randomUUID();
+  const sessionToken = await signElderSession(elderId, elder.name, exp, sid);
 
-  // Also store in memory for the paired devices list
-  createElderSession(elderId, "Paired via QR");
+  // Remember the device so the caregiver can list it and remove it later
+  createElderSession(elderId, "Paired via QR", sid);
 
   // Set httpOnly cookie. Only mark it secure when the app is really served over https.
   const cookieStore = await cookies();
-  cookieStore.set("pokemed_elder_session", sessionToken, {
+  cookieStore.set(ELDER_COOKIE_NAME, sessionToken, {
     httpOnly: true,
     sameSite: "lax",
     path: "/",

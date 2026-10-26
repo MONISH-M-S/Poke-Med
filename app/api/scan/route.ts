@@ -4,6 +4,12 @@ import { parsePrescription } from "@/lib/parse/sig";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
+/** A prescription photo is a few hundred KB. Anything large is refused before
+ *  it is read into memory, base64-encoded, or sent to a vision model. */
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const MAX_TEXT_CHARS = 100_000;
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/heic"];
+
 const PROMPT = `Transcribe the medicine lines on this prescription exactly as written, for a pharmacist to check.
 Rules:
 - Output one medicine per line, in the order written. Keep the line breaks.
@@ -57,6 +63,9 @@ export async function POST(req: Request) {
     if (!text?.trim()) {
       return NextResponse.json({ error: "No prescription text supplied." }, { status: 400 });
     }
+    if (text.length > MAX_TEXT_CHARS) {
+      return NextResponse.json({ error: "That text is too long to read." }, { status: 413 });
+    }
     const { medicines, ignored } = parsePrescription(text);
     return NextResponse.json({
       mode: "text",
@@ -75,6 +84,12 @@ export async function POST(req: Request) {
   const file = form.get("file");
   if (!(file instanceof File) || file.size === 0) {
     return NextResponse.json({ error: "No image supplied." }, { status: 400 });
+  }
+  if (file.size > MAX_IMAGE_BYTES) {
+    return NextResponse.json({ error: "That photo is too large. Try one under 8 MB." }, { status: 413 });
+  }
+  if (file.type && !ALLOWED_IMAGE_TYPES.includes(file.type.toLowerCase())) {
+    return NextResponse.json({ error: "That file is not an image we can read." }, { status: 415 });
   }
 
   try {

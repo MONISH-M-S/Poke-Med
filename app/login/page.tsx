@@ -24,7 +24,10 @@ export default function LoginPage() {
 
   useEffect(() => {
     const target = new URLSearchParams(window.location.search).get("next");
-    setNext(target && target.startsWith("/") ? target : null);
+    // Only same-app paths: reject "//evil.com" and "/\evil.com", which browsers
+    // treat as a different origin even though they start with a slash.
+    const safe = target && target.startsWith("/") && !target.startsWith("//") && !target.startsWith("/\\");
+    setNext(safe ? target : null);
   }, []);
 
   async function signIn(value: string) {

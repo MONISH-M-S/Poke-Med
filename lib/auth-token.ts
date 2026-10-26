@@ -8,6 +8,8 @@ export interface Session {
   role: Role;
   name: string;
   exp: number;
+  /** Identifies one paired device, so a caregiver can revoke just that device. */
+  sid?: string;
 }
 
 const encoder = new TextEncoder();
@@ -44,8 +46,13 @@ export async function signSession(session: Session): Promise<string> {
   return `${payload}.${b64url(new Uint8Array(signature))}`;
 }
 
-export async function signElderSession(elderId: string, elderName: string, exp: number): Promise<string> {
-  return signSession({ pid: elderId, role: "elder", name: elderName, exp });
+export async function signElderSession(
+  elderId: string,
+  elderName: string,
+  exp: number,
+  sid?: string,
+): Promise<string> {
+  return signSession({ pid: elderId, role: "elder", name: elderName, exp, sid });
 }
 
 export async function verifySession(token?: string | null): Promise<Session | null> {

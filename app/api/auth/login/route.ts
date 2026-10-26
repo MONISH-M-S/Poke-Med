@@ -3,7 +3,6 @@ import { readDB } from "@/lib/db";
 import { verifySecret } from "@/lib/auth-hash";
 import { signSession } from "@/lib/auth-token";
 import { COOKIE_NAME, SESSION_DAYS } from "@/lib/demo-auth";
-import type { Role } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -11,8 +10,15 @@ export const dynamic = "force-dynamic";
 const attempts = new Map<string, { count: number; resetAt: number }>();
 
 function tooMany(ip: string): boolean {
+  const nowMs = Date.now();
+  // Keep the throttle table from growing without bound on a busy or hostile host.
+  if (attempts.size > 1000) {
+    for (const [key, entry] of attempts) {
+      if (entry.resetAt < nowMs) attempts.delete(key);
+    }
+  }
   const entry = attempts.get(ip);
-  if (!entry || entry.resetAt < Date.now()) return false;
+  if (!entry || entry.resetAt < nowMs) return false;
   return entry.count >= 8;
 }
 
@@ -41,15 +47,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
 
-  const role: Role | null =
-    body.mode === "elder" ? "elder" : body.mode === "caregiver" ? "caregiver" : null;
-
-  if (!role) {
-    return NextResponse.json({ error: "Choose whose PIN this is." }, { status: 400 });
+  // Elder devices never sign in with a PIN — they pair with a QR code.
+  if (body.mode === "elder") {
+    return NextResponse.json(
+      { error: "Elder devices pair with a QR code. There is no PIN." },
+      { status: 400 },
+    );
+  }
+  if (body.mode !== "caregiver") {
+    return NextResponse.json({ error: "Sign in as a caregiver." }, { status: 400 });
   }
 
   const db = readDB();
-  const person = db.people.find((p) => p.role === role);
+  const person = db.people.find((p) => p.role === "caregiver");
   const valid = verifySecret(String(body.pin ?? ""), person?.pinHash);
 
   if (!person || !valid) {

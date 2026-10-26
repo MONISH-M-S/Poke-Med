@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { verifySession } from "./lib/auth-token";
-import { COOKIE_NAME } from "./lib/demo-auth";
+import { COOKIE_NAME, ELDER_COOKIE_NAME } from "./lib/demo-auth";
 
 /**
  * Two doors, one app.
@@ -16,7 +16,7 @@ export async function middleware(req: NextRequest) {
   if (/\.[a-zA-Z0-9]+$/.test(pathname)) return NextResponse.next();
 
   const caregiverSession = await verifySession(req.cookies.get(COOKIE_NAME)?.value);
-  const elderSession = await verifySession(req.cookies.get("pokemed_elder_session")?.value);
+  const elderSession = await verifySession(req.cookies.get(ELDER_COOKIE_NAME)?.value);
 
   // Login page — only for caregivers
   if (pathname === "/login") {

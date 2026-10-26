@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { verifySession } from "@/lib/auth-token";
 import { COOKIE_NAME } from "@/lib/demo-auth";
+import { rejectRevokedElder } from "@/lib/elder-guard";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
+  const blocked = await rejectRevokedElder();
+  if (blocked) return blocked;
+
   const cookie = req.headers.get("cookie") ?? "";
   const token = cookie
     .split(";")

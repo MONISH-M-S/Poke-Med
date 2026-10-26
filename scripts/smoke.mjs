@@ -61,6 +61,17 @@ function setCookieFrom(res) {
   });
   check("a wrong PIN is rejected", wrong.status === 401, `status ${wrong.status}`);
 
+  const elderPin = await fetch(BASE + "/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode: "elder", pin: "1234" }),
+  });
+  check(
+    "the elder PIN door is closed",
+    elderPin.status === 400 && !setCookieFrom(elderPin),
+    `status ${elderPin.status}`,
+  );
+
   const caregiver = await fetch(BASE + "/api/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -174,6 +185,13 @@ function setCookieFrom(res) {
       revoke.ok && revokeData.ok && revokeData.data?.revoked === true,
       revokeData.error ?? "revoked",
     );
+
+    // The removed device still holds a signed cookie; it must stop working.
+    const afterRevoke = await fetch(BASE + "/api/state", {
+      cache: "no-store",
+      headers: { cookie: elderCookie },
+    });
+    check("a removed device loses access", afterRevoke.status === 401, `status ${afterRevoke.status}`);
   }
 }
 

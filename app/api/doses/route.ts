@@ -2,10 +2,14 @@ import { NextResponse } from "next/server";
 import { mutate } from "@/lib/db";
 import { now } from "@/lib/clock";
 import { buildState } from "@/lib/state";
+import { rejectRevokedElder } from "@/lib/elder-guard";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  const blocked = await rejectRevokedElder();
+  if (blocked) return blocked;
+
   const body = (await req.json()) as { doseId?: string; action?: "taken" | "snooze"; actor?: string };
 
   const result = await mutate(async (db) => {
