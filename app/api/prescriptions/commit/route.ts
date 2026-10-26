@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { mutate } from "@/lib/db";
+import { mutate, newId } from "@/lib/db";
 import { localDateKey, now } from "@/lib/clock";
 import { addDaysKey, generateDoses } from "@/lib/doses";
 import { detectFlags } from "@/lib/checks";
@@ -17,7 +17,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "No medicines to save." }, { status: 400 });
   }
 
-  const result = mutate((db) => {
+  const result = await mutate(async (db) => {
     const elder = db.people.find((p) => p.role === "elder")!;
     const today = localDateKey(now());
     const horizon = addDaysKey(today, MAX_HORIZON_DAYS);
@@ -68,7 +68,7 @@ export async function POST(req: Request) {
       }
 
       const med: Medicine = {
-        id: `med_${Math.random().toString(36).slice(2, 10)}`,
+        id: newId("med"),
         personId: elder.id,
         brand,
         salt: raw.salt,
@@ -109,7 +109,7 @@ export async function POST(req: Request) {
     }
 
     db.prescriptions.push({
-      id: `rx_${Math.random().toString(36).slice(2, 10)}`,
+      id: newId("rx"),
       personId: elder.id,
       rawText: body.rawText ?? "",
       status: "saved",

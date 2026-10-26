@@ -1,10 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import type { DB } from "./types";
 import { buildSeed } from "./seed";
 import { setClockOffset } from "./clock";
 import { hashSecret } from "./auth-hash";
 import { DEMO_CAREGIVER_PIN, DEMO_PIN } from "./demo-auth";
+import { withMutex } from "./mutex";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const DB_FILE = path.join(DATA_DIR, "db.json");
@@ -45,11 +47,11 @@ export function readDB(): DB {
   const db = JSON.parse(fs.readFileSync(DB_FILE, "utf8")) as DB;
   cache.db = db;
   setClockOffset(db.clockOffsetMinutes ?? 0);
-  if (migrateAuth(db)) writeDB(db);
+  if (migrateAuth(db)) writeDBUnlocked(db);
   return db;
 }
 
-export function writeDB(db: DB) {
+function writeDBUnlocked(db: DB) {
   ensureDir();
   const tmp = DB_FILE + ".tmp";
   fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
@@ -57,21 +59,36 @@ export function writeDB(db: DB) {
   cache.db = db;
 }
 
-export function mutate<T>(fn: (db: DB) => T): T {
+/**
+ * Mutate the database with a mutex — only one caller at a time.
+ * The callback receives the live DB object; its mutations are persisted atomically.
+ */
+export async function mutate<T>(fn: (db: DB) => T): Promise<T> {
+  return withMutex(async () => {
+    const db = readDB();
+    const result = fn(db);
+    writeDBUnlocked(db);
+    return result;
+  });
+}
+
+/** Synchronous version for startup/seed — no mutex needed since it's single-threaded at boot. */
+export function mutateSync<T>(fn: (db: DB) => T): T {
   const db = readDB();
   const result = fn(db);
-  writeDB(db);
+  writeDBUnlocked(db);
   return result;
 }
 
 export function resetDB(): DB {
   ensureDir();
   const seeded = buildSeed();
-  writeDB(seeded);
+  writeDBUnlocked(seeded);
   setClockOffset(0);
   return seeded;
 }
 
+/** Collision-resistant, sortable IDs — uses Web Crypto (available in Node 15+). */
 export function newId(prefix: string) {
-  return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
+  return `${prefix}_${randomUUID().slice(0, 13)}`;
 }

@@ -44,6 +44,6 @@ export function SectionTitle({
   );
 }
 
-export function Empty({ children }: { children: React.ReactNode }) {
-  return <p className="rounded-xl bg-paper px-4 py-5 text-sm text-muted">{children}</p>;
+export function Empty({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <p className={`rounded-xl bg-paper px-4 py-5 text-sm text-muted ${className ?? ""}`}>{children}</p>;
 }

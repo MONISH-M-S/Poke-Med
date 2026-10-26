@@ -123,8 +123,8 @@ export function buildState(db: DB): AppState {
   };
 }
 
-export function getState(): AppState {
-  return mutate((db) => {
+export async function getState(): Promise<AppState> {
+  return mutate(async (db) => {
     sweep(db);
     return buildState(db);
   });

@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { postJSON, useAppState } from "@/lib/client";
+import { postJSON, useAppState, optimisticUpdate } from "@/lib/client";
+import { ElderSkeleton } from "@/components/Skeleton";
+import { useSuccessToast, useErrorToast } from "@/components/Toast";
 import type { AppState, DoseView } from "@/lib/types";
 
 type Lang = "en" | "ta" | "hi";
@@ -40,7 +42,7 @@ const T = {
     due: "இப்போது",
     upcoming: "அடுத்த மருந்து",
     help: "உதவி வேண்டுமா? அழை",
-    wellDone: "நன்று",
+    wellDone: "நன்றி",
     voice: "குரல்",
     language: "மொழி",
     notConfirmed: "இன்னும் உறுதி செய்யவில்லை",
@@ -82,6 +84,8 @@ export default function ElderScreen() {
   const [voiceNote, setVoiceNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const lastSpoken = useRef<string | null>(null);
+  const successToast = useSuccessToast();
+  const errorToast = useErrorToast();
 
   const t = T[lang];
 
@@ -97,8 +101,7 @@ export default function ElderScreen() {
       synth.cancel();
 
       const food = foodWord(language, target.relationToFood);
-      const dict = T[language];
-      let text = `${dict.timeFor}. ${target.brand}. ${target.strength ?? ""}. ${target.doseLabel}. ${food}.`;
+      let text = `${T[language].timeFor}. ${target.brand}. ${target.strength ?? ""}. ${target.doseLabel}. ${food}.`;
       let utterLang = language === "ta" ? "ta-IN" : language === "hi" ? "hi-IN" : "en-IN";
 
       const voices = synth.getVoices();
@@ -142,9 +145,11 @@ export default function ElderScreen() {
     if (!dose || busy) return;
     setBusy(true);
     try {
+      const previous = optimisticUpdate(setState, dose.id, "taken");
       const next = await postJSON<AppState>("/api/doses", { doseId: dose.id, action: "taken", actor: "elder" });
       setState(next);
       setJustTaken(true);
+      successToast(t.taken, `${dose.brand} ${dose.strength}`);
       if (voiceOn && "speechSynthesis" in window) {
         const u = new SpeechSynthesisUtterance(t.wellDone);
         u.lang = lang === "ta" ? "ta-IN" : lang === "hi" ? "hi-IN" : "en-IN";
@@ -153,6 +158,8 @@ export default function ElderScreen() {
         window.speechSynthesis.speak(u);
       }
       setTimeout(() => setJustTaken(false), 2600);
+    } catch (e) {
+      errorToast("Could not mark dose", e instanceof Error ? e.message : "Please try again");
     } finally {
       setBusy(false);
     }
@@ -162,8 +169,12 @@ export default function ElderScreen() {
     if (!dose || busy) return;
     setBusy(true);
     try {
+      const previous = optimisticUpdate(setState, dose.id, "snooze");
       const next = await postJSON<AppState>("/api/doses", { doseId: dose.id, action: "snooze" });
       setState(next);
+      successToast("Reminder snoozed", "Will remind again in 10 minutes");
+    } catch (e) {
+      errorToast("Could not snooze", e instanceof Error ? e.message : "Please try again");
     } finally {
       setBusy(false);
     }
@@ -188,11 +199,7 @@ export default function ElderScreen() {
   }
 
   if (!state) {
-    return (
-      <div className="elder-body grid min-h-screen place-items-center p-6">
-        <p className="text-2xl font-semibold text-muted">Loading…</p>
-      </div>
-    );
+    return <ElderSkeleton />;
   }
 
   const nextDose = state.nextDose;
@@ -276,8 +283,8 @@ export default function ElderScreen() {
                     dose.status === "missed"
                       ? "bg-red-50 text-alert"
                       : isUpcoming
-                        ? "bg-brand-50 text-brand-700"
-                        : "bg-amber-50 text-warn"
+                      ? "bg-brand-50 text-brand-700"
+                      : "bg-amber-50 text-warn"
                   }`}
                 >
                   {dose.status === "missed" ? t.missed : isUpcoming ? t.upcoming : t.due}

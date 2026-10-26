@@ -1,33 +1,124 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { postJSON, useAppState, clockNote } from "@/lib/client";
+import { useState, useCallback, useEffect } from "react";
+import { postJSON, useAppState, clockNote, optimisticUpdate } from "@/lib/client";
 import { StatusPill, FoodNote, Empty } from "@/components/ui";
+import { DashboardSkeleton } from "@/components/Skeleton";
+import { useSuccessToast, useErrorToast } from "@/components/Toast";
 import type { AppState, DoseView } from "@/lib/types";
 
 export default function Dashboard() {
   const { state, setState, error } = useAppState();
   const [nudge, setNudge] = useState<string | null>(null);
+  const [pairingModal, setPairingModal] = useState<{ open: boolean; token?: string; url?: string }>({ open: false });
+  const [devices, setDevices] = useState<Array<{ token: string; createdAt: number; deviceInfo: string }>>([]);
+  const [devicesLoading, setDevicesLoading] = useState(false);
+  const successToast = useSuccessToast();
+  const errorToast = useErrorToast();
 
-  async function markTaken(dose: DoseView) {
-    const next = await postJSON<AppState>("/api/doses", {
-      doseId: dose.id,
-      action: "taken",
-      actor: "caregiver",
-    });
-    setState(next);
-  }
+  const markTaken = useCallback(
+    async (dose: DoseView) => {
+      const previous = optimisticUpdate(setState, dose.id, "taken");
+      try {
+        const next = await postJSON<AppState>("/api/doses", {
+          doseId: dose.id,
+          action: "taken",
+          actor: "caregiver",
+        });
+        setState(next);
+        successToast("Dose marked", `${dose.brand} ${dose.strength} at ${dose.time}`);
+      } catch (e) {
+        if (previous) setState(previous);
+        errorToast("Could not mark dose", e instanceof Error ? e.message : "Please try again");
+      }
+    },
+    [setState, successToast, errorToast]
+  );
+
+  const snoozeDose = useCallback(
+    async (dose: DoseView) => {
+      const previous = optimisticUpdate(setState, dose.id, "snooze");
+      try {
+        const next = await postJSON<AppState>("/api/doses", {
+          doseId: dose.id,
+          action: "snooze",
+          actor: "caregiver",
+        });
+        setState(next);
+        successToast("Reminder snoozed", `Will remind again in 10 minutes`);
+      } catch (e) {
+        if (previous) setState(previous);
+        errorToast("Could not snooze", e instanceof Error ? e.message : "Please try again");
+      }
+    },
+    [setState, successToast, errorToast]
+  );
 
   async function nudgeElder() {
     setNudge("A reminder is now showing on Lakshmi's screen.");
     setTimeout(() => setNudge(null), 4000);
   }
 
+  async function loadDevices() {
+    setDevicesLoading(true);
+    try {
+      const res = await fetch("/api/pair/devices", { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.ok) setDevices(data.data);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setDevicesLoading(false);
+    }
+  }
+
+  async function openPairingModal() {
+    try {
+      const res = await fetch("/api/pair/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await res.json();
+      if (res.ok && data.token && data.pairingUrl) {
+        setPairingModal({ open: true, token: data.token, url: data.pairingUrl });
+      } else {
+        errorToast("Could not create pairing link", data.error ?? `Status ${res.status}`);
+      }
+    } catch {
+      errorToast("Could not create pairing link", "Network error");
+    }
+  }
+
+  async function revokeDevice(token: string) {
+    try {
+      const res = await fetch("/api/pair/devices", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        loadDevices();
+        successToast("Device removed", "The elder will need to pair again");
+      } else {
+        errorToast("Could not remove device", data.error);
+      }
+    } catch {
+      errorToast("Could not remove device", "Network error");
+    }
+  }
+
+  useEffect(() => {
+    loadDevices();
+  }, []);
+
   if (error) {
     return (
       <div className="container-app py-16">
-        <div className="card p-6">
+        <div className="card p-6 text-center">
           <h1 className="h1">Could not load the dashboard</h1>
           <p className="muted mt-2">{error}</p>
           <button className="btn-primary mt-4" onClick={() => location.reload()}>
@@ -39,15 +130,7 @@ export default function Dashboard() {
   }
 
   if (!state) {
-    return (
-      <div className="container-app py-16">
-        <div className="h-10 w-64 animate-pulse rounded-lg bg-line" />
-        <div className="mt-6 grid gap-4 lg:grid-cols-3">
-          <div className="card h-64 animate-pulse lg:col-span-2" />
-          <div className="card h-64 animate-pulse" />
-        </div>
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   const { elder, caregiver, today, week, flags, alerts } = state;
@@ -82,15 +165,21 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href="/elder" className="btn-ghost">
-            Open {elder.name}&apos;s screen
-          </Link>
           <Link href="/upload" className="btn-primary">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
             </svg>
             New prescription
           </Link>
+          <button className="btn-ghost" onClick={openPairingModal}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mr-1.5" aria-hidden="true">
+              <rect x="3" y="3" width="7" height="7" rx="1" />
+              <rect x="14" y="3" width="7" height="7" rx="1" />
+              <rect x="3" y="14" width="7" height="7" rx="1" />
+              <rect x="14" y="14" width="7" height="7" rx="1" />
+            </svg>
+            Set up phone
+          </button>
         </div>
       </div>
 
@@ -110,7 +199,7 @@ export default function Dashboard() {
               </span>
               <div>
                 <p className="text-sm font-bold text-alert">
-                  {alerts.length === 1 ? "1 dose wasn’t confirmed" : `${alerts.length} doses weren’t confirmed`}
+                  {alerts.length === 1 ? "1 dose wasn't confirmed" : `${alerts.length} doses weren't confirmed`}
                 </p>
                 {alerts.slice(0, 2).map((a) => (
                   <p key={a.id} className="mt-1 text-sm text-red-900/80">
@@ -182,12 +271,20 @@ export default function Dashboard() {
                           </span>
                           <StatusPill status={dose.status} />
                           {dose.status !== "taken" && (
-                            <button
-                              className="hidden rounded-lg border border-line px-2.5 py-1.5 text-xs font-semibold text-muted hover:bg-paper sm:inline-flex"
-                              onClick={() => markTaken(dose)}
-                            >
-                              Mark taken
-                            </button>
+                            <div className="hidden flex items-center gap-1.5 sm:flex">
+                              <button
+                                className="rounded-lg border border-line px-2.5 py-1.5 text-xs font-semibold text-muted hover:bg-paper"
+                                onClick={() => markTaken(dose)}
+                              >
+                                Mark taken
+                              </button>
+                              <button
+                                className="rounded-lg border border-line px-2.5 py-1.5 text-xs font-semibold text-muted hover:bg-paper"
+                                onClick={() => snoozeDose(dose)}
+                              >
+                                Snooze 10m
+                              </button>
+                            </div>
                           )}
                         </li>
                       ))}
@@ -200,6 +297,63 @@ export default function Dashboard() {
         </section>
 
         <aside className="space-y-5">
+          {/* Paired Devices */}
+          <section className="card p-5 sm:p-6">
+            <div className="flex items-center justify-between">
+              <h2 className="h2">Paired devices</h2>
+              <button className="btn-ghost text-sm" onClick={openPairingModal}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mr-1.5" aria-hidden="true">
+                  <rect x="3" y="3" width="7" height="7" rx="1" />
+                  <rect x="14" y="3" width="7" height="7" rx="1" />
+                  <rect x="3" y="14" width="7" height="7" rx="1" />
+                  <rect x="14" y="14" width="7" height="7" rx="1" />
+                </svg>
+                Set up phone
+              </button>
+            </div>
+            {devicesLoading ? (
+              <div className="mt-3 space-y-2">
+                <div className="h-8 animate-pulse bg-line rounded" />
+                <div className="h-8 animate-pulse bg-line rounded" />
+              </div>
+            ) : devices.length === 0 ? (
+              <div className="mt-3 text-center py-4">
+                <p className="text-sm text-muted">No phone paired yet.</p>
+                <button className="btn-primary mt-2 text-sm" onClick={openPairingModal}>
+                  Set up {elder.name}&apos;s phone
+                </button>
+              </div>
+            ) : (
+              <ul className="mt-3 space-y-2">
+                {devices.map((d) => (
+                  <li key={d.token} className="flex items-center justify-between gap-3 rounded-xl border border-line p-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="grid h-8 w-8 place-items-center rounded-full bg-brand-100 text-brand-700 shrink-0">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                          <rect x="5" y="2" width="14" height="20" rx="2" />
+                          <path d="M12 18h.01" />
+                        </svg>
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-ink truncate">{d.deviceInfo}</p>
+                        <p className="text-xs text-muted">
+                          Paired {new Date(d.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      className="btn-ghost text-xs text-alert hover:bg-red-50 shrink-0"
+                      onClick={() => revokeDevice(d.token)}
+                      disabled={devicesLoading}
+                    >
+                      Remove
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
           {/* Adherence */}
           <section className="card p-5 sm:p-6">
             <div className="flex items-center justify-between">
@@ -216,20 +370,27 @@ export default function Dashboard() {
               {week.taken} taken · {week.missed} missed · {week.total} scheduled
             </p>
 
-            <div className="mt-4 grid grid-cols-7 gap-1.5">
+            <div className="mt-4 grid grid-cols-7 gap-1.5" role="img" aria-label="Weekly adherence">
               {week.days.map((d) => {
                 const full = d.taken + d.missed;
                 const tone =
                   full === 0
                     ? "bg-line"
                     : d.missed === 0
-                      ? "bg-brand-500"
-                      : d.missed > d.taken
-                        ? "bg-alert"
-                        : "bg-amber-400";
+                    ? "bg-brand-500"
+                    : d.missed > d.taken
+                    ? "bg-alert"
+                    : "bg-amber-400";
                 return (
-                  <div key={d.date} className="text-center">
-                    <div className={`h-12 rounded-md ${tone}`} title={`${d.taken} taken, ${d.missed} missed`} />
+                  <div
+                    key={d.date}
+                    className="text-center group"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => alert(`${d.label}: ${d.taken} taken, ${d.missed} missed of ${d.total} scheduled`)}
+                    onKeyDown={(e) => e.key === "Enter" && e.currentTarget.click()}
+                  >
+                    <div className={`h-12 rounded-md ${tone} transition-colors group-hover:opacity-80 group-focus:opacity-80 group-focus:outline-none group-focus:ring-2 group-focus:ring-brand-500`} />
                     <span className="mt-1 block text-[10px] font-semibold text-muted">{d.label}</span>
                   </div>
                 );
@@ -256,9 +417,7 @@ export default function Dashboard() {
                       className="flex items-start gap-2 rounded-xl border border-line px-3 py-2.5 hover:bg-paper"
                     >
                       <span
-                        className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
-                          f.severity === "high" ? "bg-alert" : "bg-amber-500"
-                        }`}
+                        className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${f.severity === "high" ? "bg-alert" : "bg-amber-500"}`}
                       />
                       <span className="min-w-0">
                         <span className="block text-sm font-semibold text-ink">{f.title}</span>
@@ -296,6 +455,40 @@ export default function Dashboard() {
           </section>
         </aside>
       </div>
+
+      {/* Pairing Modal */}
+      {pairingModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setPairingModal({ open: false })}>
+          <div className="w-full max-w-md bg-white rounded-2xl p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="h2">Set up {elder.name}&apos;s phone</h2>
+              <button className="text-muted hover:text-ink" onClick={() => setPairingModal({ open: false })}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <p className="mt-2 text-sm text-muted">
+              Open the camera on {elder.name}&apos;s phone and scan this QR code. The link expires in 5 minutes and works once.
+            </p>
+            {pairingModal.url && (
+              <div className="mt-4 flex flex-col items-center gap-3">
+                <div className="rounded-xl border border-line p-4 bg-white">
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(pairingModal.url)}`}
+                    alt="Pairing QR code"
+                    className="mx-auto"
+                  />
+                </div>
+                <p className="text-xs text-muted text-center break-all">{pairingModal.url}</p>
+                <button className="btn-primary w-full" onClick={() => setPairingModal({ open: false })}>
+                  Done
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

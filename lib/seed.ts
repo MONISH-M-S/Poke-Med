@@ -3,8 +3,7 @@ import { atTime, dateKeyOffset, now } from "./clock";
 import { generateDoses } from "./doses";
 import { hashSecret } from "./auth-hash";
 import { DEMO_CAREGIVER_PIN, DEMO_PIN } from "./demo-auth";
-
-const uid = (p: string) => `${p}_${Math.random().toString(36).slice(2, 9)}`;
+import { newId } from "./db";
 
 /**
  * Seeded demo world. Synthetic data only — no real patients.
@@ -16,7 +15,7 @@ export function buildSeed(): DB {
   const tomorrow = dateKeyOffset(1);
 
   const base = (over: Partial<Medicine>): Medicine => ({
-    id: uid("med"),
+    id: newId("med"),
     personId: "el_lakshmi",
     brand: "Medicine",
     salt: [],
@@ -35,7 +34,7 @@ export function buildSeed(): DB {
 
   const medicines: Medicine[] = [
     base({
-      id: "med_metformin",
+      id: newId("med"),
       brand: "Metformin",
       salt: ["metformin"],
       strength: "500 mg",
@@ -45,7 +44,7 @@ export function buildSeed(): DB {
       rawSig: "Tab. Metformin 500 mg   1-0-1 PC   x 30 days",
     }),
     base({
-      id: "med_amlodipine",
+      id: newId("med"),
       brand: "Amlodipine",
       salt: ["amlodipine"],
       strength: "5 mg",
@@ -55,7 +54,7 @@ export function buildSeed(): DB {
       rawSig: "Tab. Amlodipine 5 mg   1-0-0 AC   x 30 days",
     }),
     base({
-      id: "med_atorvastatin",
+      id: newId("med"),
       brand: "Atorvastatin",
       salt: ["atorvastatin"],
       strength: "10 mg",
@@ -64,7 +63,7 @@ export function buildSeed(): DB {
       rawSig: "Tab. Atorvastatin 10 mg   0-0-1 HS   x 30 days",
     }),
     base({
-      id: "med_aspirin",
+      id: newId("med"),
       brand: "Ecosprin",
       salt: ["aspirin"],
       strength: "75 mg",
@@ -74,7 +73,7 @@ export function buildSeed(): DB {
       rawSig: "Tab. Ecosprin 75 mg   OD PC   x 30 days",
     }),
     base({
-      id: "med_crocin",
+      id: newId("med"),
       brand: "Crocin",
       salt: ["paracetamol"],
       strength: "500 mg",
@@ -89,10 +88,10 @@ export function buildSeed(): DB {
 
   // A believable pattern: four missed doses across the week.
   const misses = new Set([
-    `${dateKeyOffset(-5)}|20:00|med_metformin`,
-    `${dateKeyOffset(-3)}|08:00|med_amlodipine`,
-    `${dateKeyOffset(-2)}|21:00|med_atorvastatin`,
-    `${dateKeyOffset(-1)}|20:00|med_metformin`,
+    `${dateKeyOffset(-5)}|20:00|${medicines[0].id}`,
+    `${dateKeyOffset(-3)}|08:00|${medicines[1].id}`,
+    `${dateKeyOffset(-2)}|21:00|${medicines[2].id}`,
+    `${dateKeyOffset(-1)}|20:00|${medicines[0].id}`,
   ]);
 
   const current = now();

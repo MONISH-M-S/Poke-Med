@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { mutate, resetDB, readDB } from "@/lib/db";
+import { mutate, resetDB, readDB, mutateSync } from "@/lib/db";
 import { setClockOffset } from "@/lib/clock";
 import { buildState, GRACE_MINUTES, sweep } from "@/lib/state";
 
@@ -14,7 +14,7 @@ export async function POST(req: Request) {
   }
 
   if (body.action === "realTime") {
-    const db = mutate((d) => {
+    const db = await mutate(async (d) => {
       d.clockOffsetMinutes = 0;
       return d;
     });
@@ -23,7 +23,7 @@ export async function POST(req: Request) {
   }
 
   if (body.action === "offset" && typeof body.minutes === "number") {
-    const db = mutate((d) => {
+    const db = await mutate(async (d) => {
       d.clockOffsetMinutes = Math.round(body.minutes!);
       return d;
     });
@@ -43,7 +43,7 @@ export async function POST(req: Request) {
     if (!target) return NextResponse.json({ ...buildState(db), notice: "No doses left to show." });
 
     const minutes = (target.at + 60_000 - realNow) / 60_000;
-    const next = mutate((d) => {
+    const next = await mutate(async (d) => {
       d.clockOffsetMinutes = Math.round(minutes);
       return d;
     });
@@ -68,7 +68,7 @@ export async function POST(req: Request) {
 
     const desired = target.at + GRACE_MINUTES * 60_000 + 60_000;
     const minutes = (desired - realNow) / 60_000;
-    const next = mutate((d) => {
+    const next = await mutate(async (d) => {
       d.clockOffsetMinutes = Math.round(minutes);
       return d;
     });

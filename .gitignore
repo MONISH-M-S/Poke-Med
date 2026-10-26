@@ -13,3 +13,7 @@ next-env.d.ts
 data/ocr-bench/
 data/ocr-lab/
 priscrip'/
+
+# Local server logs
+server.log
+*.log

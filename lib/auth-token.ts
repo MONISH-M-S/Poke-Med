@@ -1,6 +1,6 @@
 // Session tokens: HMAC-signed, Web Crypto only, so this module works in both the
 // Node runtime (route handlers) and the edge runtime (middleware).
-import { AUTH_SECRET } from "./auth-secret";
+import { getAuthSecret } from "./auth-secret";
 import type { Role } from "./types";
 
 export interface Session {
@@ -17,7 +17,7 @@ let keyPromise: Promise<CryptoKey> | null = null;
 function key(): Promise<CryptoKey> {
   keyPromise ??= crypto.subtle.importKey(
     "raw",
-    encoder.encode(AUTH_SECRET),
+    encoder.encode(getAuthSecret()),
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign", "verify"],
@@ -42,6 +42,10 @@ export async function signSession(session: Session): Promise<string> {
   const payload = b64url(encoder.encode(JSON.stringify(session)));
   const signature = await crypto.subtle.sign("HMAC", await key(), encoder.encode(payload));
   return `${payload}.${b64url(new Uint8Array(signature))}`;
+}
+
+export async function signElderSession(elderId: string, elderName: string, exp: number): Promise<string> {
+  return signSession({ pid: elderId, role: "elder", name: elderName, exp });
 }
 
 export async function verifySession(token?: string | null): Promise<Session | null> {

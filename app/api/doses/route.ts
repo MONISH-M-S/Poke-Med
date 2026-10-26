@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   const body = (await req.json()) as { doseId?: string; action?: "taken" | "snooze"; actor?: string };
 
-  const result = mutate((db) => {
+  const result = await mutate(async (db) => {
     const dose = db.doses.find((d) => d.id === body.doseId);
     if (!dose) return { ok: false as const, error: "Dose not found" };
 
