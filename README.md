@@ -15,6 +15,9 @@ family sees what happened — including the doses that were missed.
 **Live demo:** <https://pokemed.vercel.app> — caregiver PIN `2468`; the elder's phone is added by scanning the QR code
 from the dashboard. State is stored in Vercel Blob, so changes survive across requests.
 
+**Progress log:** [`docs/PROGRESS.md`](docs/PROGRESS.md) — what has been built and tested since day one, what is
+still open, and how to re-run every check.
+
 ---
 
 ## What it does
