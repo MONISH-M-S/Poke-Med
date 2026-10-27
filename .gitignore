@@ -18,3 +18,5 @@ priscrip'/
 # Local server logs
 server.log
 *.log
+.vercel
+.env*

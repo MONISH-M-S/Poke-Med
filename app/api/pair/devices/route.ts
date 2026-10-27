@@ -12,7 +12,7 @@ async function getCaregiverSession() {
   if (!session || session.role !== "caregiver") return null;
 
   const { readDB } = await import("@/lib/db");
-  const db = readDB();
+  const db = await readDB();
   const elder = db.people.find((p) => p.role === "elder" && p.linkedTo === session.pid);
   return { session, elder };
 }
@@ -26,7 +26,7 @@ export async function GET() {
     return NextResponse.json({ error: "No elder linked" }, { status: 404 });
   }
 
-  const sessions = listElderSessions(auth.elder.id);
+  const sessions = await listElderSessions(auth.elder.id);
   return NextResponse.json({
     ok: true,
     data: sessions.map((s) => ({
@@ -49,7 +49,7 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ ok: false, error: "Session token required" }, { status: 400 });
   }
 
-  const revoked = revokeElderSession(token);
+  const revoked = await revokeElderSession(token);
   if (!revoked) {
     return NextResponse.json({ ok: false, error: "Session not found" }, { status: 404 });
   }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { mutate, resetDB, readDB, mutateSync } from "@/lib/db";
+import { mutate, resetDB, readDB } from "@/lib/db";
 import { setClockOffset } from "@/lib/clock";
 import { buildState, GRACE_MINUTES, sweep } from "@/lib/state";
 
@@ -9,7 +9,7 @@ export async function POST(req: Request) {
   const body = (await req.json()) as { action?: string; minutes?: number };
 
   if (body.action === "reset") {
-    const db = resetDB();
+    const db = await resetDB();
     return NextResponse.json(buildState(db));
   }
 
@@ -33,7 +33,7 @@ export async function POST(req: Request) {
 
   if (body.action === "nextDose") {
     // Move the clock just before the next unconfirmed dose, so it reads as due now.
-    const db = readDB();
+    const db = await readDB();
     const realNow = Date.now();
     const due = db.doses
       .filter((d) => d.status === "due")
@@ -45,16 +45,17 @@ export async function POST(req: Request) {
     const minutes = (target.at + 60_000 - realNow) / 60_000;
     const next = await mutate(async (d) => {
       d.clockOffsetMinutes = Math.round(minutes);
+      setClockOffset(d.clockOffsetMinutes);
+      // Sweep inside the mutation so the missed alerts are actually persisted.
+      sweep(d);
       return d;
     });
-    setClockOffset(minutes);
-    sweep(next);
     return NextResponse.json(buildState(next));
   }
 
   if (body.action === "nextMiss") {
     // Move the clock just past the grace window of the next unconfirmed dose.
-    const db = readDB();
+    const db = await readDB();
     const realNow = Date.now();
     const candidates = db.doses
       .filter((d) => d.status === "due")
@@ -70,10 +71,10 @@ export async function POST(req: Request) {
     const minutes = (desired - realNow) / 60_000;
     const next = await mutate(async (d) => {
       d.clockOffsetMinutes = Math.round(minutes);
+      setClockOffset(d.clockOffsetMinutes);
+      sweep(d);
       return d;
     });
-    setClockOffset(minutes);
-    sweep(next);
 
     return NextResponse.json(buildState(next));
   }

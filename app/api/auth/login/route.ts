@@ -69,7 +69,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Sign in as a caregiver." }, { status: 400 });
   }
 
-  const db = readDB();
+  const db = await readDB();
   const person = db.people.find((p) => p.role === "caregiver");
   const valid = verifySecret(String(body.pin ?? ""), person?.pinHash);
 

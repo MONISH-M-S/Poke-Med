@@ -7,13 +7,19 @@ import { setClockOffset } from "./clock";
 import { hashSecret } from "./auth-hash";
 import { DEMO_CAREGIVER_PIN } from "./demo-auth";
 import { withMutex } from "./mutex";
+import { blobEnabled, blobRead, blobWrite } from "./blob";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const DB_FILE = path.join(DATA_DIR, "db.json");
+const DB_KEY = "pokemed/db.json";
 
-type Cache = { db: DB | null };
+const useBlob = blobEnabled();
+/** Short cache so one request reading the DB three times costs one fetch. */
+const CACHE_MS = 1000;
+
+type Cache = { db: DB | null; at: number };
 const g = globalThis as unknown as { __pokemed?: Cache };
-const cache: Cache = (g.__pokemed ??= { db: null });
+const cache: Cache = (g.__pokemed ??= { db: null, at: 0 });
 
 function ensureDir() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -42,56 +48,74 @@ function migrateAuth(db: DB): boolean {
   return changed;
 }
 
-export function readDB(): DB {
-  if (cache.db) return cache.db;
+async function loadFresh(): Promise<DB> {
+  if (useBlob) {
+    const stored = await blobRead<DB>(DB_KEY);
+    if (stored) return stored;
+    // A missing blob is a real first run. Anything else throws in blobRead,
+    // so a transient failure can never overwrite good data with a fresh seed.
+    const seeded = buildSeed();
+    await blobWrite(DB_KEY, seeded);
+    return seeded;
+  }
+
   ensureDir();
   if (!fs.existsSync(DB_FILE)) {
     const seeded = buildSeed();
     fs.writeFileSync(DB_FILE, JSON.stringify(seeded, null, 2));
-    cache.db = seeded;
-    setClockOffset(seeded.clockOffsetMinutes);
     return seeded;
   }
-  const db = JSON.parse(fs.readFileSync(DB_FILE, "utf8")) as DB;
-  cache.db = db;
+  return JSON.parse(fs.readFileSync(DB_FILE, "utf8")) as DB;
+}
+
+/** Read the database. Pass `fresh` to bypass the cache (used before a write). */
+export async function readDB({ fresh = false }: { fresh?: boolean } = {}): Promise<DB> {
+  if (cache.db && !fresh) {
+    if (!useBlob) return cache.db;
+    if (Date.now() - cache.at < CACHE_MS) return cache.db;
+  }
+
+  const db = await loadFresh();
   setClockOffset(db.clockOffsetMinutes ?? 0);
-  if (migrateAuth(db)) writeDBUnlocked(db);
+
+  if (migrateAuth(db)) {
+    await writeDBUnlocked(db);
+  } else {
+    cache.db = db;
+    cache.at = Date.now();
+  }
   return db;
 }
 
-function writeDBUnlocked(db: DB) {
-  ensureDir();
-  const tmp = DB_FILE + ".tmp";
-  fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
-  fs.renameSync(tmp, DB_FILE);
+async function writeDBUnlocked(db: DB) {
+  if (useBlob) {
+    await blobWrite(DB_KEY, db);
+  } else {
+    ensureDir();
+    const tmp = DB_FILE + ".tmp";
+    fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
+    fs.renameSync(tmp, DB_FILE);
+  }
   cache.db = db;
+  cache.at = Date.now();
 }
 
 /**
- * Mutate the database with a mutex — only one caller at a time.
- * The callback receives the live DB object; its mutations are persisted atomically.
+ * Mutate the database with a mutex — one caller at a time in this process.
+ * The callback receives the live DB object; its mutations are persisted.
  */
 export async function mutate<T>(fn: (db: DB) => T): Promise<T> {
   return withMutex(async () => {
-    const db = readDB();
+    const db = await readDB({ fresh: true });
     const result = fn(db);
-    writeDBUnlocked(db);
+    await writeDBUnlocked(db);
     return result;
   });
 }
 
-/** Synchronous version for startup/seed — no mutex needed since it's single-threaded at boot. */
-export function mutateSync<T>(fn: (db: DB) => T): T {
-  const db = readDB();
-  const result = fn(db);
-  writeDBUnlocked(db);
-  return result;
-}
-
-export function resetDB(): DB {
-  ensureDir();
+export async function resetDB(): Promise<DB> {
   const seeded = buildSeed();
-  writeDBUnlocked(seeded);
+  await writeDBUnlocked(seeded);
   setClockOffset(0);
   return seeded;
 }

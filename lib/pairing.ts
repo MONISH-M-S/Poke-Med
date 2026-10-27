@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { blobEnabled, blobRead, blobWrite } from "./blob";
 
 interface PairingToken {
   token: string;
@@ -15,137 +16,135 @@ interface ElderSession {
   deviceInfo?: string;
 }
 
-// Pairing tokens live for five minutes, so memory is enough.
-const tokens = new Map<string, PairingToken>();
+/**
+ * Pairing tokens, paired devices and revocations share one small document.
+ * Locally it is data/elder-sessions.json; on Vercel it is a private blob, so a
+ * QR created on one instance can be redeemed on another and a removed device
+ * stays removed across every instance.
+ */
+type Store = {
+  tokens: PairingToken[];
+  sessions: ElderSession[];
+  revoked: string[];
+};
 
-// Paired devices outlive a restart: a phone that scanned yesterday should still
-// appear in the caregiver's list (and a removed one should stay removed).
-const sessions = new Map<string, ElderSession>();
-const revoked = new Set<string>();
+const STORE_FILE = path.join(process.cwd(), "data", "elder-sessions.json");
+const STORE_KEY = "pokemed/pairing.json";
+const useBlob = blobEnabled();
 
-const STORE = path.join(process.cwd(), "data", "elder-sessions.json");
-
-type Stored = { sessions: ElderSession[]; revoked: string[] };
-
-let hydrated = false;
-
-function hydrate() {
-  if (hydrated) return;
-  hydrated = true;
-  try {
-    const raw = JSON.parse(fs.readFileSync(STORE, "utf8")) as Partial<Stored>;
-    for (const session of raw.sessions ?? []) {
-      if (session?.sid) sessions.set(session.sid, session);
+async function load(): Promise<Store> {
+  let raw: Partial<Store> | null = null;
+  if (useBlob) {
+    raw = await blobRead<Partial<Store>>(STORE_KEY);
+  } else {
+    try {
+      // Older builds wrote { sessions, revoked } without tokens; accept both.
+      raw = JSON.parse(fs.readFileSync(STORE_FILE, "utf8")) as Partial<Store>;
+    } catch {
+      raw = null;
     }
-    for (const sid of raw.revoked ?? []) revoked.add(sid);
-  } catch {
-    // First run or an unreadable file: start empty rather than crash.
   }
+  return {
+    tokens: raw?.tokens ?? [],
+    sessions: raw?.sessions ?? [],
+    revoked: raw?.revoked ?? [],
+  };
 }
 
-function persist() {
+async function save(store: Store): Promise<void> {
+  if (useBlob) {
+    await blobWrite(STORE_KEY, store);
+    return;
+  }
   try {
-    fs.mkdirSync(path.dirname(STORE), { recursive: true });
-    const payload: Stored = { sessions: [...sessions.values()], revoked: [...revoked] };
-    fs.writeFileSync(STORE, JSON.stringify(payload, null, 2));
+    fs.mkdirSync(path.dirname(STORE_FILE), { recursive: true });
+    fs.writeFileSync(STORE_FILE, JSON.stringify(store, null, 2));
   } catch {
     // Losing the device list is better than failing the pairing flow.
   }
 }
 
 /** Create a single-use pairing token valid for 5 minutes. */
-export function createPairingToken(elderId: string): string {
+export async function createPairingToken(elderId: string): Promise<string> {
   const token = crypto.randomUUID();
-  tokens.set(token, {
-    token,
-    elderId,
-    expiresAt: Date.now() + 5 * 60 * 1000,
-  });
+  const store = await load();
+  const nowMs = Date.now();
+  store.tokens = store.tokens.filter((t) => t.expiresAt > nowMs);
+  store.tokens.push({ token, elderId, expiresAt: nowMs + 5 * 60 * 1000 });
+  await save(store);
   return token;
 }
 
 /** Validate and consume a pairing token. Returns elderId if valid. */
-export function consumePairingToken(token: string): string | null {
-  const record = tokens.get(token);
+export async function consumePairingToken(token: string): Promise<string | null> {
+  const store = await load();
+  const record = store.tokens.find((t) => t.token === token);
   if (!record) return null;
   if (Date.now() > record.expiresAt) {
-    tokens.delete(token);
+    store.tokens = store.tokens.filter((t) => t.token !== token);
+    await save(store);
     return null;
   }
-  tokens.delete(token); // single-use
+  store.tokens = store.tokens.filter((t) => t.token !== token); // single-use
+  await save(store);
   return record.elderId;
 }
 
-/** Create a long-lived elder session (180 days). Returns the session id, which
- *  is also placed in the cookie so revocation can be checked later. */
-export function createElderSession(elderId: string, deviceInfo?: string, sid?: string): string {
-  hydrate();
+/** Create a long-lived elder session (180 days) and remember the device. */
+export async function createElderSession(elderId: string, deviceInfo?: string, sid?: string): Promise<string> {
   const sessionId = sid ?? crypto.randomUUID();
-  sessions.set(sessionId, {
+  const store = await load();
+  store.sessions = store.sessions.filter((s) => s.sid !== sessionId);
+  store.sessions.push({
     elderId,
     token: sessionId,
     sid: sessionId,
     createdAt: Date.now(),
     deviceInfo,
   });
-  persist();
+  await save(store);
   return sessionId;
 }
 
 /** Remember a device that already holds a valid signed cookie.
  *
- *  This covers phones paired before the session list was persisted, and any
- *  future loss of the store: the cookie is proof the device was paired, so the
+ *  Covers phones paired before the session list was persisted, and any future
+ *  loss of the store: the cookie is proof the device was paired, so the
  *  caregiver's list heals itself instead of showing nothing.
  *  Revoked sessions are never adopted back. */
-export function adoptElderSession(sid: string | undefined, elderId: string, deviceInfo = "Paired via QR"): void {
+export async function adoptElderSession(
+  sid: string | undefined,
+  elderId: string,
+  deviceInfo = "Paired via QR",
+): Promise<void> {
   if (!sid) return;
-  hydrate();
-  if (sessions.has(sid) || revoked.has(sid)) return;
-  sessions.set(sid, { elderId, token: sid, sid, createdAt: Date.now(), deviceInfo });
-  persist();
+  const store = await load();
+  if (store.sessions.some((s) => s.sid === sid) || store.revoked.includes(sid)) return;
+  store.sessions.push({ elderId, token: sid, sid, createdAt: Date.now(), deviceInfo });
+  await save(store);
 }
 
-/** Verify an elder session token. */
-export function verifyElderSession(token: string | undefined): ElderSession | null {
-  if (!token) return null;
-  hydrate();
-  const session = sessions.get(token);
-  if (!session) return null;
-  // 180 day expiry
-  if (Date.now() > session.createdAt + 180 * 24 * 60 * 60 * 1000) {
-    sessions.delete(token);
-    persist();
-    return null;
-  }
-  return session;
-}
-
-/** Revoke an elder session (by session token). The cookie JWT cannot be unsigned,
- *  so the session id joins a deny-list that route handlers check. */
-export function revokeElderSession(sessionToken: string): boolean {
-  hydrate();
-  const session = sessions.get(sessionToken);
+/** Revoke a device by its session token. The cookie JWT cannot be unsigned, so
+ *  the session id joins a deny-list that route handlers check. */
+export async function revokeElderSession(sessionToken: string): Promise<boolean> {
+  const store = await load();
+  const session = store.sessions.find((s) => s.token === sessionToken);
   if (!session) return false;
-  revoked.add(session.sid);
-  sessions.delete(sessionToken);
-  persist();
+  if (!store.revoked.includes(session.sid)) store.revoked.push(session.sid);
+  store.sessions = store.sessions.filter((s) => s.token !== sessionToken);
+  await save(store);
   return true;
 }
 
 /** True when this device's session was removed by the caregiver. */
-export function isElderSessionRevoked(sid: string | undefined): boolean {
+export async function isElderSessionRevoked(sid: string | undefined): Promise<boolean> {
   if (!sid) return false;
-  hydrate();
-  return revoked.has(sid);
+  const store = await load();
+  return store.revoked.includes(sid);
 }
 
 /** List all active sessions for an elder. */
-export function listElderSessions(elderId: string): ElderSession[] {
-  hydrate();
-  const result: ElderSession[] = [];
-  for (const session of sessions.values()) {
-    if (session.elderId === elderId) result.push(session);
-  }
-  return result;
+export async function listElderSessions(elderId: string): Promise<ElderSession[]> {
+  const store = await load();
+  return store.sessions.filter((s) => s.elderId === elderId);
 }
