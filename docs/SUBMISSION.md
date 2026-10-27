@@ -28,14 +28,15 @@ Replace anything in `[brackets]` before submitting.
 | Field | Value |
 |---|---|
 | Repository | https://github.com/MONISH-M-S/Poke-Med |
-| Live demo | [tunnel or hosted URL, or "run locally — see below"] |
+| Live demo | https://pokemed.vercel.app |
 | Demo video | [YouTube/Drive link] |
 | Team | [names, roles] |
 
 **Demo credentials**
 
 - Caregiver sign-in: PIN `2468` (printed on the sign-in screen by design).
-- Elder: no PIN. On the dashboard press **Set up phone** and scan the QR with a phone on the same Wi-Fi.
+- Elder: no PIN. On the dashboard press **Set up phone** and scan the QR with any phone — on the hosted demo it works
+  over mobile data; when running locally the phone must be on the same Wi-Fi.
 
 ---
 

@@ -12,6 +12,9 @@ family sees what happened — including the doses that were missed.
 
 **Decision support, not medical advice.** PokéMed does not diagnose, prescribe, or replace a doctor or pharmacist.
 
+**Live demo:** <https://pokemed.vercel.app> — caregiver PIN `2468`; the elder's phone is added by scanning the QR code
+from the dashboard. State is stored in Vercel Blob, so changes survive across requests.
+
 ---
 
 ## What it does
