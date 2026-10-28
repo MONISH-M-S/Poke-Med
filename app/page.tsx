@@ -10,7 +10,7 @@ import type { AppState, DoseView } from "@/lib/types";
 
 export default function Dashboard() {
   const { state, setState, error, reload } = useAppState();
-  const [pairingModal, setPairingModal] = useState<{ open: boolean; token?: string; url?: string }>({ open: false });
+  const [pairingModal, setPairingModal] = useState<{ open: boolean; token?: string; url?: string; qr?: string }>({ open: false });
   const [devices, setDevices] = useState<Array<{ token: string; createdAt: number; deviceInfo: string }>>([]);
   const [devicesLoading, setDevicesLoading] = useState(false);
   const successToast = useSuccessToast();
@@ -93,7 +93,7 @@ export default function Dashboard() {
       });
       const data = await res.json();
       if (res.ok && data.token && data.pairingUrl) {
-        setPairingModal({ open: true, token: data.token, url: data.pairingUrl });
+        setPairingModal({ open: true, token: data.token, url: data.pairingUrl, qr: data.qr });
       } else {
         errorToast("Could not create pairing link", data.error ?? `Status ${res.status}`);
       }
@@ -490,11 +490,11 @@ export default function Dashboard() {
             {pairingModal.url && (
               <div className="mt-4 flex flex-col items-center gap-3">
                 <div className="rounded-xl border border-line p-4 bg-white">
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(pairingModal.url)}`}
-                    alt="Pairing QR code"
-                    className="mx-auto"
-                  />
+                  {pairingModal.qr ? (
+                    <img src={pairingModal.qr} alt="Pairing QR code" className="mx-auto" />
+                  ) : (
+                    <p className="text-xs text-muted">Preparing the QR code…</p>
+                  )}
                 </div>
                 <p className="text-xs text-muted text-center break-all">{pairingModal.url}</p>
                 <details className="w-full text-xs text-muted">

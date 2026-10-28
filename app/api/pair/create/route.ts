@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import QRCode from "qrcode";
 import { verifySession } from "@/lib/auth-token";
 import { createPairingToken } from "@/lib/pairing";
 import { requestOrigin } from "@/lib/origin";
@@ -24,6 +25,13 @@ export async function POST(req: Request) {
 
   const pairingToken = await createPairingToken(elder.id);
   const pairingUrl = `${requestOrigin(req)}/api/pair/${pairingToken}`;
+  // Generate the QR here, not through a third-party image service: the URL
+  // contains a single-use token that grants access to the elder's screen.
+  const qr = await QRCode.toDataURL(pairingUrl, {
+    width: 240,
+    margin: 1,
+    errorCorrectionLevel: "M",
+  });
 
-  return NextResponse.json({ token: pairingToken, pairingUrl, expiresIn: 5 * 60 });
+  return NextResponse.json({ token: pairingToken, pairingUrl, qr, expiresIn: 5 * 60 });
 }

@@ -1,7 +1,9 @@
 node_modules
 .next
 out
-.env*.local
+.env
+.env.*
+!.env.example
 data/db.json*
 data/elder-sessions.json
 data/uploads/*
@@ -22,4 +24,3 @@ priscrip'/
 server.log
 *.log
 .vercel
-.env*

@@ -4,18 +4,65 @@ import { localDateKey, now } from "@/lib/clock";
 import { addDaysKey, generateDoses } from "@/lib/doses";
 import { detectFlags } from "@/lib/checks";
 import { buildState } from "@/lib/state";
-import type { ExtractedMedicine, Medicine } from "@/lib/types";
+import type { Medicine } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 const MAX_HORIZON_DAYS = 30;
+const MAX_TEXT_CHARS = 100_000;
+
+type Incoming = {
+  brand?: unknown;
+  salt?: unknown;
+  strength?: unknown;
+  form?: unknown;
+  doseLabel?: unknown;
+  times?: unknown;
+  relationToFood?: unknown;
+  prn?: unknown;
+  durationDays?: unknown;
+  rawSig?: unknown;
+};
+
+function asText(value: unknown, fallback = ""): string {
+  return typeof value === "string" ? value : fallback;
+}
+
+function asTimes(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (t): t is string => typeof t === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(t),
+  );
+}
+
+function asFood(value: unknown): "before" | "after" | "with" | null {
+  return value === "before" || value === "after" || value === "with" ? value : null;
+}
 
 export async function POST(req: Request) {
-  const body = (await req.json()) as { medicines?: ExtractedMedicine[]; rawText?: string };
-  const incoming = body.medicines ?? [];
-  if (!Array.isArray(incoming) || incoming.length === 0) {
+  let body: { medicines?: unknown; rawText?: unknown };
+  try {
+    body = (await req.json()) as { medicines?: unknown; rawText?: unknown };
+  } catch {
+    return NextResponse.json({ error: "Invalid request." }, { status: 400 });
+  }
+  const incoming = Array.isArray(body.medicines) ? body.medicines : [];
+  if (incoming.length === 0) {
     return NextResponse.json({ error: "No medicines to save." }, { status: 400 });
   }
+  const hasUsable = incoming.some((item) => {
+    if (!item || typeof item !== "object") return false;
+    const raw = item as Incoming;
+    return (
+      asText(raw.brand).trim().length > 0 &&
+      Array.isArray(raw.salt) &&
+      raw.salt.some((s) => typeof s === "string" && s.trim().length > 0)
+    );
+  });
+  if (!hasUsable) {
+    return NextResponse.json({ error: "No valid medicines to save." }, { status: 400 });
+  }
+  const rawText = asText(body.rawText).slice(0, MAX_TEXT_CHARS);
 
   const result = await mutate(async (db) => {
     const elder = db.people.find((p) => p.role === "elder")!;
@@ -24,32 +71,47 @@ export async function POST(req: Request) {
     const createdIds: string[] = [];
     let updated = 0;
 
-    for (const raw of incoming) {
-      const brand = (raw.brand || "").trim();
-      if (!brand) continue;
-      if (!raw.salt?.length) continue;
+    for (const item of incoming) {
+      const raw = (item ?? {}) as Incoming;
+      const brand = asText(raw.brand).trim();
+      const salt = Array.isArray(raw.salt)
+        ? raw.salt.filter((s): s is string => typeof s === "string" && s.trim().length > 0)
+        : [];
+      if (!brand || salt.length === 0) continue;
 
-      const saltKey = [...raw.salt].sort().join("+");
+      const prn = Boolean(raw.prn);
+      const times = asTimes(raw.times);
+      const durationDays =
+        typeof raw.durationDays === "number" && Number.isFinite(raw.durationDays)
+          ? Math.max(0, Math.min(365, Math.floor(raw.durationDays)))
+          : null;
+      const strength = asText(raw.strength).trim() || undefined;
+      const form = asText(raw.form).trim() || "tablet";
+      const doseLabel = asText(raw.doseLabel).trim() || "1 tablet";
+      const relationToFood = asFood(raw.relationToFood);
+      const rawSig = asText(raw.rawSig);
+
+      const saltKey = [...salt].sort().join("+");
       const existing = db.medicines.find(
         (m) =>
           m.personId === elder.id &&
           [...m.salt].sort().join("+") === saltKey &&
           m.brand.toLowerCase() === brand.toLowerCase() &&
-          m.prn === raw.prn,
+          m.prn === prn,
       );
 
-      const endDate = raw.prn
+      const endDate = prn
         ? null
-        : raw.durationDays
-          ? addDaysKey(today, Math.max(0, raw.durationDays - 1))
+        : durationDays && durationDays > 0
+          ? addDaysKey(today, Math.max(0, durationDays - 1))
           : horizon;
 
       if (existing) {
-        existing.times = raw.times;
-        existing.doseLabel = raw.doseLabel;
-        existing.relationToFood = raw.relationToFood;
-        existing.strength = raw.strength ?? existing.strength;
-        existing.rawSig = raw.rawSig || existing.rawSig;
+        existing.times = times;
+        existing.doseLabel = doseLabel;
+        existing.relationToFood = relationToFood;
+        existing.strength = strength ?? existing.strength;
+        existing.rawSig = rawSig || existing.rawSig;
         existing.endDate = endDate;
 
         const nowIso = now().toISOString();
@@ -71,16 +133,16 @@ export async function POST(req: Request) {
         id: newId("med"),
         personId: elder.id,
         brand,
-        salt: raw.salt,
-        strength: raw.strength,
-        form: raw.form || "tablet",
-        doseLabel: raw.doseLabel || "1 tablet",
-        times: raw.times ?? [],
-        relationToFood: raw.relationToFood ?? null,
-        prn: Boolean(raw.prn),
+        salt,
+        strength,
+        form,
+        doseLabel,
+        times,
+        relationToFood,
+        prn,
         startDate: today,
         endDate,
-        rawSig: raw.rawSig || "",
+        rawSig,
         addedBy: "scan",
         createdAt: now().toISOString(),
       };
@@ -111,7 +173,7 @@ export async function POST(req: Request) {
     db.prescriptions.push({
       id: newId("rx"),
       personId: elder.id,
-      rawText: body.rawText ?? "",
+      rawText,
       status: "saved",
       createdAt: now().toISOString(),
     });

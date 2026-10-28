@@ -1,13 +1,12 @@
 # Project progress log
 
 A from-the-start record of what PokéMed is, what was built, what was tested, and what is
-still open. Started 2026-10-27; updated 2026-10-28.
+still open. Started 2026-10-27; updated 2026-10-29.
 
 | | |
 |---|---|
-| Repository | https://github.com/MONISH-M-S/Poke-Med |
 | Live demo | https://pokemed.vercel.app |
-| Pitch deck | `Poke-Med-Dexathon-2026.pdf` (Team ID `DEX26286`, theme Healthcare, PS category Software) |
+| Pitch deck | `Poke-Med-Dexathon-2026.pdf` |
 | Submission text | [`docs/SUBMISSION.md`](SUBMISSION.md) |
 | Presentation | [`docs/PITCH.md`](PITCH.md) |
 | Caregiver PIN | `2468` — elder never signs in, the phone is added by scanning a QR code |
@@ -21,7 +20,7 @@ still open. Started 2026-10-27; updated 2026-10-28.
 | Photo or typed Rx → reviewed schedule | Built and tested |
 | Elder screen: one big **Taken** button, voice in Tamil / Hindi / English | Built and tested (see the audio test below) |
 | Missed-dose alert, one-tap nudge, weekly adherence report | Built |
-| Confidence score per medicine, "not sure, ask your pharmacist" | **Open** — the deck itself marks it `[Review built; score planned]` |
+| Confidence score per medicine, "not sure, ask your pharmacist" | **Built** — rule-based read-confidence chip on every review row, 4 unit tests, low-score pharmacist wording |
 | Reads a handwritten Rx photo | **Built, opt-in** — local Donut OCR service; without `OCR_SERVICE_URL` it falls back to a vision key, then browser OCR |
 | Drug data: RxNorm + openFDA | **Partly done** — real Indian products and a DrugBank extract are in; RxNorm/openFDA normalisation is still next |
 | Indian brand → generic map (Dolo = paracetamol) | Built — 135,121 brand tokens, 1,679 salts |
@@ -109,8 +108,8 @@ so:
 
 | | |
 |---|---|
-| Project | `pokemed` under scope `promptwars12`, linked to the GitHub repo (pushes to `main` auto-deploy) |
-| Storage | private Blob store `pokemed-data`, connected via OIDC (`BLOB_STORE_ID`, `BLOB_WEBHOOK_PUBLIC_KEY`) |
+| Project | `pokemed`, linked to the source repository (pushes to `main` auto-deploy) |
+| Storage | private Blob store, connected via OIDC (`BLOB_STORE_ID`, `BLOB_WEBHOOK_PUBLIC_KEY`) |
 | Secrets | `AUTH_SECRET` (production + preview, marked secret), `POKEMED_TRUST_PROXY=1` so login throttling uses the real client IP |
 | Verified live | login → state → create pairing link → redeem → device list → elder state → nudge → revoke → revoked device `401`; browser login keypad, dashboard, **zero console errors** |
 
@@ -195,7 +194,7 @@ Loaded `public/sample-prescription.png` through the actual UI and read it:
 
 ### 3. Elder screen audio — pass
 
-Paired a phone through the real QR link (`http://10.226.51.99:3000/api/pair/…` → `/elder`),
+Paired a phone through the real QR link (`http://<LAN-IP>:3000/api/pair/…` → `/elder`),
 then drove every audio path:
 
 | Check | Result |
@@ -212,7 +211,7 @@ then drove every audio path:
 ### 4. Regression suites
 
 - `node scripts/smoke.mjs` → **36/36**
-- `npm run test` → **22/22**
+- `npm run test` → **35/35**
 - `npx tsc --noEmit` → clean; `npm run build` → clean
 
 ### 5. Real-data and interaction suite — 2026-10-28
@@ -227,9 +226,59 @@ then drove every audio path:
 | Unknown token kept but marked for review; typo `Ecosprln` suggests `Ecosprin` | pass |
 | Metformin + cimetidine raises a DrugBank-sourced flag (serum concentration) | pass |
 | Curated ibuprofen + aspirin is not duplicated by the dataset | pass |
-| `npm run test` | **31/31** |
+| `npm run test` | **35/35** |
 | `npx tsc --noEmit` / `npm run build` | clean |
 | `node scripts/vision-test.mjs` (no OCR service configured) | **12/12**, honest `needs-text` fallback |
+
+### 6. Completion, privacy and security pass — 2026-10-29
+
+**Confidence and review**
+
+- Every review row now shows a rule-based **read-confidence** chip (`97%` for a clear printed line, lower when the
+  timing is missing or the brand is unknown), with four unit tests. A low score says *"Not sure about this line? Ask
+  your pharmacist before saving."*
+- Fixed the upload-preview race: the selected photo now reaches the review screen even when the file picker and the
+  read button are used back-to-back. The browser E2E suite asserts the photo is still on review.
+- Added a low-confidence sample path to the E2E suite; the sample still produces three editable medicines.
+
+**Security and privacy**
+
+- **Found and fixed a real data leak:** `/api/state` returned the caregiver's scrypt `pinHash` to every signed-in
+  client, including the elder's phone. The response now uses `PublicPerson`, which strips it before serialisation.
+- **Removed the published `AUTH_SECRET` fallback.** Production now fails closed if the secret is missing; the npm
+  scripts generate a per-machine secret in `.env.local` for local use.
+- **Pairing QR is generated locally** with `qrcode` as a data URL. The single-use pairing token is no longer sent to
+  `api.qrserver.com`; the CSP no longer allows that origin.
+- **Upload and body hardening:** an 8 MB cap is checked from `Content-Length` before buffering, raster MIME types only
+  (SVG rejected), 100k-character text cap, malformed JSON returns 400 instead of 500, and `/api/prescriptions/commit`
+  sanitises every field it accepts.
+- `scripts/security-test.mjs` runs **78 checks**: repository hygiene (no tracked env/db/photos/logs/keys/emails/
+  phones/LAN addresses), auth gates, cookie flags, forged and tampered sessions, the closed elder PIN door,
+  caregiver/elder separation, pairing-token single use, device revocation, upload limits, malformed input, security
+  headers, no PIN hash or server secret in API responses or the client bundle, and the sign-in throttle (including
+  `x-forwarded-for` rotation). **78/78 pass.**
+- `npm audit --omit=dev` reports **0 vulnerabilities** after overriding the transitive `zod` to a patched 4.x.
+
+**Docs and data**
+
+- Replaced the realistic-looking sample with a clearly synthetic one (`Dr. A. Demo`, `Sample Patient`, `DEMO-0000`)
+  and a footer saying it is not a real prescription. Deleted the old SVG source and the old `review-ocr.png`.
+- Regenerated all `docs/` screenshots from the new sample and the confidence UI.
+- Scrubbed repository/deployment identifiers, the LAN address, and stale test counts from the docs. The demo personas
+  (Arjun and Lakshmi) are fictional and every seeded record is synthetic.
+
+**Final results**
+
+| Suite | Result |
+|---|---|
+| Unit (`npm test`) | **35/35** |
+| Security and privacy (`npm run test:security`) | **78/78** |
+| Mock OCR service (`npm run test:ocr-service`) | **14/14** |
+| Browser E2E (`npm run test:ui`) | **13/13** |
+| API smoke (`node scripts/smoke.mjs`) | **36/36** |
+| Vision/OCR API (`node scripts/vision-test.mjs`) | **12/12** |
+| `npx tsc --noEmit` / `npm run build` | clean |
+| `npm audit --omit=dev` | 0 vulnerabilities |
 
 ---
 
@@ -237,38 +286,44 @@ then drove every audio path:
 
 1. **Handwriting OCR is opt-in.** The Donut service has to be running and `OCR_SERVICE_URL`
    set; the hosted demo still uses the browser fallback and says so. The service has not been
-   benchmarked on the four WhatsApp photos yet — that is the next honest measurement.
-2. **One photo went missing on the review screen.** The first end-to-end run stored
-   `image: null` even though the preview was on screen; two later runs — including a
-   deliberate back-to-back "Load sample" + "Read prescription" click — stored the image
-   correctly. Not reproduced; worth watching.
-3. **No confidence score yet** — the biggest gap between the deck and the product.
-4. **Interaction severity is inferred, not licensed.** The free DrugBank extract has no
+   benchmarked on the four local prescription photos yet — that is the next honest measurement.
+2. **Interaction severity is inferred, not licensed.** The free DrugBank extract has no
    severity, evidence or management column; flags say this and cite the DOI. The DrugBank
    clinical API would fix it but needs a commercial licence.
-5. **First-token brand matching still loses spaced variants.** `Ecosprin-AV` is indexed, but a
+3. **First-token brand matching still loses spaced variants.** `Ecosprin-AV` is indexed, but a
    handwritten `Ecosprin AV` parses as `Ecosprin` because the OCR parser keeps one brand token.
    The raw line stays on the review screen, and every line needs confirmation.
-6. **State is not in PostgreSQL** (JSON locally, Blob on Vercel).
-7. `npm audit` reports 3 moderate Tailwind build-time advisories.
-8. Local LAN phone access needs an inbound firewall rule for TCP 3000 (needs elevation).
-   The deployed URL is unaffected.
-9. Two paired devices are currently listed on the local demo; `POST /api/demo`
-   with `{"action":"reset"}` restores the seeded week (works on Vercel too).
+4. **State is not in PostgreSQL** (JSON locally, Blob on Vercel).
+5. **Prototype auth.** One demo caregiver PIN, shown on screen by design; no account recovery,
+   no multi-user accounts. Do not use this build with real patient data.
+6. **CSP still needs `'unsafe-inline'` for Next's bootstrap scripts** and allows the Tesseract
+   worker from jsDelivr. There are no user-controlled HTML sinks; React escapes rendered text.
+   A nonce-based CSP is a future hardening step.
+7. **CSRF relies on SameSite=Lax** rather than a per-form token. State-changing APIs require
+   JSON (except the image upload) and the cookie is host-only, but an explicit origin check
+   would be belt-and-braces.
+8. **Only sign-in is rate-limited.** Authenticated scan/commit calls are bounded by size caps
+   and auth, not by a separate per-user quota.
+9. **One elder and one caregiver** in the seeded data; multi-elder households are next.
+10. Local LAN phone access needs an inbound firewall rule for TCP 3000 (needs elevation).
+    The deployed URL is unaffected.
+11. `POST /api/demo` with `{"action":"reset"}` restores the seeded week and clock, but it does
+    **not** revoke paired phones. Remove them from the Paired devices card when starting clean.
 
 ---
 
-## Agreed next steps (2026-10-28)
+## Agreed next steps (2026-10-29)
 
-1. **Confidence score, and benchmark the Donut service** — run `services/ocr` over the four
-   real WhatsApp photos and record character/word accuracy; then per-medicine confidence with
-   the deck's "not sure, ask your pharmacist" wording.
+1. **Benchmark the Donut service** — run `services/ocr` over the four local prescription photos
+   and record character/word accuracy. Confidence score is now shipped; this is the remaining
+   measurement.
 2. **RxNorm + openFDA** — normalise the 1,679 salts to standard identifiers and put label
    warnings behind the interaction flags; keep the DrugBank extract for pair coverage.
 3. **PostgreSQL** for application state, if a database is provided.
 4. **Logo** — the supplied lockup still needs placing (login, nav, favicon, social image).
 5. **Pilot metric**: log caregiver corrections to OCR output so the deck's
    "OCR corrections made by caregivers" can actually be measured.
+6. **Push notifications and a pharmacist queue** — the two product gaps the demo is honest about.
 
 ---
 
@@ -279,14 +334,26 @@ npm install
 npm run seed          # synthetic elder, caregiver and a week of history
 npm run dev           # http://localhost:3000
 
-node scripts/smoke.mjs        # 36 end-to-end assertions
-npm run test                  # 31 unit checks
-node scripts/vision-test.mjs  # 12 vision/OCR API checks (server must be running)
-node scripts/ocr-bench.mjs "folder-of-photos"   # OCR accuracy report over real photos
+npm test                      # 35 unit checks
+npm run build                 # production build; generates .env.local locally
+npm run test:security         # 78 repository + live security/privacy checks
+npm run test:ocr-service      # 14 checks with a mock local OCR service
+npm run test:ui               # 13 browser end-to-end checks
+
+# These two need a server already running on http://localhost:3000:
+node scripts/smoke.mjs        # 36 API assertions
+node scripts/vision-test.mjs  # 12 vision/OCR API checks
+
+npm run sample:make           # regenerate the synthetic sample prescription
+npm run shots                 # regenerate docs/ screenshots (server on :3000)
+node scripts/ocr-bench.mjs "folder-of-photos"   # OCR accuracy report over local photos
 
 npm run data:fetch            # download the 45 MB source datasets (git-ignored)
 npm run data:build            # regenerate lib/data/generated/ from them
 ```
+
+`test:security`, `test:ocr-service`, and `test:ui` start their own production server and need
+`npm run build` first. `npm audit --omit=dev` should report 0 vulnerabilities.
 
 Demo: caregiver PIN `2468`. Elder screen: **Set up phone** on the dashboard, scan the QR
 with a phone on the same Wi-Fi (or any phone on the hosted demo).

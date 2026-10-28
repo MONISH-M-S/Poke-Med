@@ -93,11 +93,23 @@ async function serviceTranscribe(file: File): Promise<string | null> {
 
 export async function POST(req: Request) {
   const contentType = req.headers.get("content-type") || "";
+  const declaredLength = Number(req.headers.get("content-length") ?? 0);
+
+  // Refuse an oversized body before formData/json buffers it into memory.
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_IMAGE_BYTES + 1024 * 1024) {
+    return NextResponse.json({ error: "That upload is too large. Try a photo under 8 MB." }, { status: 413 });
+  }
 
   // Path 1: text was supplied (pasted, or read by browser OCR)
   if (contentType.includes("application/json")) {
-    const { text } = (await req.json()) as { text?: string };
-    if (!text?.trim()) {
+    let body: { text?: unknown };
+    try {
+      body = (await req.json()) as { text?: unknown };
+    } catch {
+      return NextResponse.json({ error: "Invalid request." }, { status: 400 });
+    }
+    const text = typeof body.text === "string" ? body.text : "";
+    if (!text.trim()) {
       return NextResponse.json({ error: "No prescription text supplied." }, { status: 400 });
     }
     if (text.length > MAX_TEXT_CHARS) {
@@ -117,7 +129,12 @@ export async function POST(req: Request) {
   }
 
   // Path 2: an image was uploaded
-  const form = await req.formData();
+  let form: FormData;
+  try {
+    form = await req.formData();
+  } catch {
+    return NextResponse.json({ error: "Invalid upload." }, { status: 400 });
+  }
   const file = form.get("file");
   if (!(file instanceof File) || file.size === 0) {
     return NextResponse.json({ error: "No image supplied." }, { status: 400 });

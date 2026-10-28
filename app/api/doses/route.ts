@@ -10,7 +10,15 @@ export async function POST(req: Request) {
   const blocked = await rejectRevokedElder();
   if (blocked) return blocked;
 
-  const body = (await req.json()) as { doseId?: string; action?: "taken" | "snooze"; actor?: string };
+  let body: { doseId?: unknown; action?: unknown; actor?: unknown };
+  try {
+    body = (await req.json()) as { doseId?: unknown; action?: unknown; actor?: unknown };
+  } catch {
+    return NextResponse.json({ error: "Invalid request." }, { status: 400 });
+  }
+  if (typeof body.doseId !== "string" || !body.doseId) {
+    return NextResponse.json({ error: "Dose required" }, { status: 400 });
+  }
 
   const result = await mutate(async (db) => {
     const dose = db.doses.find((d) => d.id === body.doseId);

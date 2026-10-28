@@ -27,7 +27,7 @@ Replace anything in `[brackets]` before submitting.
 
 | Field | Value |
 |---|---|
-| Repository | https://github.com/MONISH-M-S/Poke-Med |
+| Repository | [repository URL] |
 | Live demo | https://pokemed.vercel.app |
 | Demo video | [YouTube/Drive link] |
 | Team | [names, roles] |
@@ -53,8 +53,8 @@ The result is missed treatment and avoidable hospital visits — and families wh
 PokéMed closes that loop in four steps:
 
 1. **Read** — the caregiver photographs the prescription; OCR extracts the medicine lines.
-2. **Confirm** — a deterministic decoder turns `1-0-1 PC` into morning and night, after food. Every line is editable
-   and nothing is scheduled until a human confirms it.
+2. **Confirm** — a deterministic decoder turns `1-0-1 PC` into morning and night, after food. Every line is editable,
+   shows a rule-based read-confidence score, and nothing is scheduled until a human confirms it.
 3. **Act** — the elder's phone is paired by scanning a QR code (never a PIN). Their screen has large type, a spoken
    reminder, and one **Taken** button.
 4. **Close the loop** — every dose is logged. A dose not confirmed within 60 minutes becomes *missed*, and an alert
@@ -74,12 +74,12 @@ Separately, the app flags possible medication conflicts for a pharmacist — two
 - **One clock.** Every "now" goes through one module, so the demo panel can jump to the next dose or the next missed
   dose on stage — no waiting for a cron job.
 - **Honest OCR.** Clean print parses 3 of 3 sample lines. Handwriting is best-effort, and the app says so instead of
-  guessing. A local benchmark on four real photos is included in the repo.
+  guessing. The benchmark script is included; the four local photos it uses stay outside the repository.
 
 ## Built with
 
 `Next.js` · `TypeScript` · `Tailwind CSS` · `Node.js` · `Web Crypto (HMAC)` · `scrypt` · `Tesseract.js` ·
-`OpenAI vision (optional)` · `Playwright` (screenshots and smoke tests)
+`OpenAI vision (optional)` · `qrcode` (local pairing QR) · `Playwright` (screenshots and browser tests)
 
 ## What makes it different
 
@@ -101,10 +101,10 @@ Separately, the app flags possible medication conflicts for a pharmacist — two
 
 ## What we are proud of
 
-- 36 end-to-end smoke checks (including "a removed device loses access") and 22 unit checks on the parser and safety
-  rules, all green.
-- A full security pass: no shipped signing secret (one is generated per machine), CSP, httpOnly cookies, per-device
-  revocation, and no elder PIN door to attack.
+- **35 unit checks** on the parser, confidence scoring and safety rules; **78 security/privacy checks**; **14 mock OCR
+  service checks**; **13 browser end-to-end checks**; and 36 API smoke checks — all green.
+- A full security pass: no shipped signing secret and fail-closed production, local-only pairing QR, CSP, httpOnly
+  cookies, per-device revocation, no PIN hash in API responses, and no elder PIN door to attack.
 - The demo runs offline: sample prescription, seeded week, no external service required.
 
 ## Honest limitations

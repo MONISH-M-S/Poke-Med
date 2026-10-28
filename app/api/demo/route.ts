@@ -6,7 +6,12 @@ import { buildState, GRACE_MINUTES, sweep } from "@/lib/state";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
-  const body = (await req.json()) as { action?: string; minutes?: number };
+  let body: { action?: unknown; minutes?: unknown };
+  try {
+    body = (await req.json()) as { action?: unknown; minutes?: unknown };
+  } catch {
+    return NextResponse.json({ error: "Invalid request." }, { status: 400 });
+  }
 
   if (body.action === "reset") {
     const db = await resetDB();
@@ -22,12 +27,13 @@ export async function POST(req: Request) {
     return NextResponse.json(buildState(db));
   }
 
-  if (body.action === "offset" && typeof body.minutes === "number") {
+  if (body.action === "offset" && typeof body.minutes === "number" && Number.isFinite(body.minutes)) {
+    const minutes = Math.round(body.minutes);
     const db = await mutate(async (d) => {
-      d.clockOffsetMinutes = Math.round(body.minutes!);
+      d.clockOffsetMinutes = minutes;
       return d;
     });
-    setClockOffset(body.minutes);
+    setClockOffset(minutes);
     return NextResponse.json(buildState(db));
   }
 

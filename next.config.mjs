@@ -4,7 +4,6 @@
  * - Next injects inline bootstrap scripts, so 'unsafe-inline' stays for scripts.
  * - Tesseract.js (browser OCR) pulls its worker and language data from jsDelivr
  *   and projectnaptha, and runs the worker from a blob URL.
- * - The pairing QR image is drawn by api.qrserver.com.
  */
 const isDev = process.env.NODE_ENV !== "production";
 
@@ -18,7 +17,7 @@ const csp = [
     isDev ? " 'unsafe-eval'" : ""
   }`,
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https://api.qrserver.com",
+  "img-src 'self' data: blob:",
   "font-src 'self' data:",
   "connect-src 'self' blob: data: https://cdn.jsdelivr.net https://tessdata.projectnaptha.com",
   "worker-src 'self' blob: https://cdn.jsdelivr.net",

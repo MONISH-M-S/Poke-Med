@@ -79,18 +79,7 @@ async function shot(page, name) {
   console.log("shot", name);
 }
 
-// 1. Rasterise the sample prescription
-{
-  const ctx = await browser.newContext({ viewport: { width: 900, height: 1180 }, deviceScaleFactor: 2 });
-  const page = await ctx.newPage();
-  await page.goto("file:///" + path.join(root, "public", "sample-prescription.svg").replaceAll("\\", "/"));
-  await page.waitForTimeout(300);
-  await page.screenshot({ path: path.join(root, "public", "sample-prescription.png") });
-  console.log("shot sample-prescription.png");
-  await ctx.close();
-}
-
-// 2. The caregiver sign-in screen (before we hold a session)
+// 1. The caregiver sign-in screen (before we hold a session)
 {
   const page = await newPage(1440, 1050);
   await page.goto(BASE + "/login", { waitUntil: "networkidle" });

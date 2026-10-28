@@ -144,6 +144,29 @@ ok("a near-miss brand gets a question, not a silent rename", () => {
   assert.match(meds[0].notes.join(" "), /Ecosprin/);
 });
 
+console.log("\nRead-confidence score");
+
+ok("a clear 1-0-1 pattern scores high", () => {
+  const r = parseSig("Tab. Metformin 500mg 1-0-1 PC");
+  assert.ok(r.confidence >= 0.9, `got ${r.confidence}`);
+});
+
+ok("missing timing scores low and asks for confirmation", () => {
+  const r = parseSig("Tab. Metformin 500mg");
+  assert.ok(r.confidence < 0.7, `got ${r.confidence}`);
+  assert.match(r.notes.join(" "), /confirm/i);
+});
+
+ok("an unknown brand caps the read confidence", () => {
+  const [m] = parsePrescriptionText("Tab. Zzzznotadrug 10mg 1-0-1 PC");
+  assert.ok(m.confidence <= 0.6, `got ${m.confidence}`);
+});
+
+ok("a known brand keeps the shorthand confidence", () => {
+  const [m] = parsePrescriptionText("Tab. Dolo 650mg 1-1-1 PC x 3 days");
+  assert.ok(m.confidence >= 0.9, `got ${m.confidence}`);
+});
+
 console.log("\nSafety checks");
 
 function med(over: Partial<Medicine>): Medicine {

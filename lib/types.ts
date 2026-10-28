@@ -14,6 +14,9 @@ export interface Person {
   pinHash?: string;
 }
 
+/** A person as sent to the browser: never includes the PIN hash. */
+export type PublicPerson = Omit<Person, "pinHash">;
+
 export interface Medicine {
   id: string;
   personId: string;
@@ -134,8 +137,8 @@ export interface DayStat {
 export interface AppState {
   now: string;
   offsetMinutes: number;
-  elder: Person;
-  caregiver: Person;
+  elder: PublicPerson;
+  caregiver: PublicPerson;
   medicines: Medicine[];
   today: DoseView[];
   week: {

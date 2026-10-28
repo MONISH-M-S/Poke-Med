@@ -1,4 +1,4 @@
-import type { AppState, DB, DoseEvent, DoseView, DayStat } from "./types";
+import type { AppState, DB, DoseEvent, DoseView, DayStat, Person, PublicPerson } from "./types";
 import { mutate } from "./db";
 import { bucketOf, dayLabel, isoTimeLabel, localDateKey, now } from "./clock";
 import { addDaysKey } from "./doses";
@@ -57,6 +57,11 @@ function toView(db: DB, dose: DoseEvent): DoseView | null {
   };
 }
 
+function publicPerson(person: Person): PublicPerson {
+  const { pinHash: _pinHash, ...safe } = person;
+  return safe;
+}
+
 export function buildState(db: DB): AppState {
   const elder = db.people.find((p) => p.role === "elder")!;
   const caregiver = db.people.find((p) => p.role === "caregiver")!;
@@ -103,8 +108,8 @@ export function buildState(db: DB): AppState {
   return {
     now: current.toISOString(),
     offsetMinutes: db.clockOffsetMinutes,
-    elder,
-    caregiver,
+    elder: publicPerson(elder),
+    caregiver: publicPerson(caregiver),
     medicines: db.medicines.filter((m) => m.personId === elder.id),
     today,
     week: {

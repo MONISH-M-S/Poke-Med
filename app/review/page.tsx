@@ -142,6 +142,10 @@ export default function ReviewPage() {
             OCR is not perfect, and handwriting is harder. Correct anything that looks wrong. Nothing is scheduled
             until you confirm.
           </p>
+          <p className="mt-2 max-w-2xl text-[11px] leading-relaxed text-muted">
+            The percentage is a read-confidence score: how clearly the dose pattern was written and whether we know
+            the brand. It is not a medical judgement.
+          </p>
         </div>
         <Link href="/upload" className="btn-ghost">
           Back
@@ -200,16 +204,28 @@ export default function ReviewPage() {
 
         <section className="space-y-4">
           {rows.map((row, index) => {
-            const unsure = row.confidence < 0.7 || row.notes.length > 0;
+            const pct = Math.round(row.confidence * 100);
+            const tone =
+              row.confidence >= 0.9
+                ? "bg-brand-50 text-brand-700"
+                : row.confidence >= 0.7
+                  ? "bg-amber-50 text-warn"
+                  : "bg-red-50 text-alert";
             return (
               <div key={row.key} className="card p-4 sm:p-5">
                 <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand-50 text-xs font-bold text-brand-700">
                       {index + 1}
                     </span>
                     <span className="label">Medicine</span>
-                    {unsure && <span className="pill bg-amber-100 text-warn">Please check</span>}
+                    <span
+                      className={`pill ${tone}`}
+                      title="How clearly the dose pattern was read and whether the brand is known — not a medical judgement."
+                    >
+                      {pct}% read confidence
+                    </span>
+                    {row.notes.length > 0 && <span className="pill bg-amber-100 text-warn">Please check</span>}
                   </div>
                   <button
                     className="text-xs font-semibold text-muted hover:text-alert"
@@ -334,6 +350,12 @@ export default function ReviewPage() {
                       </li>
                     ))}
                   </ul>
+                )}
+
+                {row.confidence < 0.7 && (
+                  <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold leading-relaxed text-alert">
+                    Not sure about this line? Ask your pharmacist before saving.
+                  </p>
                 )}
               </div>
             );

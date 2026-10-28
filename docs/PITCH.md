@@ -18,7 +18,7 @@ medicines were actually taken. The result is missed treatment and avoidable hosp
 ## Solution
 
 - The caregiver photographs the prescription. OCR extracts medicine names, dose and timing, and the caregiver fixes
-  any mistakes before saving.
+  any mistakes before saving. Each line shows a rule-based read-confidence score.
 - Two separate doors: Arjun signs in with a PIN; Lakshmi's phone is paired once with a QR code, so she never types anything.
 - PokéMed builds the schedule and prompts at dose time on the elder's screen.
 - The elder's screen has huge text, a spoken reminder, and one big **Taken** button.
@@ -30,7 +30,7 @@ medicines were actually taken. The result is missed treatment and avoidable hosp
 ## Why it stands out
 
 Most teams stop at OCR or a reminder. PokéMed is built for elders first, and it closes the loop with the caregiver.
-The two things judges remember:
+Arjun and Lakshmi are fictional demo personas; every seeded record is synthetic. The two things judges remember:
 
 1. **The loop.** Taken reaches the family in the same second; a missed dose reaches them without a phone call.
 2. **The error guard.** Two different brand names containing the same active ingredient are flagged — the mistake

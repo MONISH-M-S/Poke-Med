@@ -81,6 +81,8 @@ export default function UploadPage() {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const previewRef = useRef<HTMLImageElement>(null);
+  const fileValue = useRef<File | null>(null);
+  const previewValue = useRef<string | null>(null);
   const dragStart = useRef<{ x: number; y: number } | null>(null);
   const dragRect = useRef<Rect | null>(null);
 
@@ -97,17 +99,25 @@ export default function UploadPage() {
   async function onPick(f: File | null) {
     setError(null);
     setMessage(null);
+    fileValue.current = f;
     setFile(f);
     setCrop(null);
     setDrag(null);
     dragRect.current = null;
     if (!f) {
+      previewValue.current = null;
       setPreview(null);
       return;
     }
     try {
-      setPreview(await compressImage(f));
+      const next = await compressImage(f);
+      // Keep the ref in step with the state: a fast second click can run
+      // readImage before React has committed setPreview, and that used to
+      // store the scan with no photo.
+      previewValue.current = next;
+      setPreview(next);
     } catch {
+      previewValue.current = null;
       setPreview(null);
     }
   }
@@ -167,13 +177,14 @@ export default function UploadPage() {
   function store(result: ScanResult, image: string | null) {
     sessionStorage.setItem(
       "pokemed.scan",
-      JSON.stringify({ ...result, image, source: file?.name ?? "typed" }),
+      JSON.stringify({ ...result, image, source: fileValue.current?.name ?? "typed" }),
     );
     router.push("/review");
   }
 
   async function readImage() {
-    if (!file) {
+    const photo = fileValue.current;
+    if (!photo) {
       setError("Choose a photo first, or type the prescription below.");
       return;
     }
@@ -182,7 +193,7 @@ export default function UploadPage() {
     setBusy("reading");
     try {
       const form = new FormData();
-      form.append("file", file);
+      form.append("file", photo);
       const res = await fetch("/api/scan", { method: "POST", body: form });
       const first = (await res.json()) as ScanResult & { error?: string };
       if (!res.ok || !Array.isArray(first.medicines)) {
@@ -200,7 +211,7 @@ export default function UploadPage() {
           setProgress(0);
           let ocrText = "";
           try {
-            ocrText = await browserOCR(file, area, setProgress);
+            ocrText = await browserOCR(photo, area, setProgress);
           } catch {
             if (area === crop) continue;
             throw new Error(
@@ -244,7 +255,7 @@ export default function UploadPage() {
         return;
       }
 
-      store(result, preview);
+      store(result, previewValue.current);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong while reading the photo.");
     } finally {
@@ -265,7 +276,7 @@ export default function UploadPage() {
         setMessage(result.message ?? "No medicine line found. Try one medicine per line.");
         return;
       }
-      store(result, preview);
+      store(result, previewValue.current);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not read that text.");
     } finally {

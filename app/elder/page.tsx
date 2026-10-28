@@ -345,7 +345,7 @@ export default function ElderScreen() {
 
             <p className="mt-6 text-center text-sm text-muted">
               {t.help}{" "}
-              <a className="font-semibold text-brand-700 underline" href="tel:+919000000000">
+              <a className="font-semibold text-brand-700 underline" href="tel:+910000000000">
                 {state.caregiver.name}
               </a>
             </p>
@@ -371,7 +371,7 @@ export default function ElderScreen() {
 
             <p className="mt-6 text-center text-sm text-muted">
               {t.help}{" "}
-              <a className="font-semibold text-brand-700 underline" href="tel:+919000000000">
+              <a className="font-semibold text-brand-700 underline" href="tel:+910000000000">
                 {state.caregiver.name}
               </a>
             </p>

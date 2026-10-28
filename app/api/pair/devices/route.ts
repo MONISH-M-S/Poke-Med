@@ -43,9 +43,14 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ ok: false, error: "Caregiver only" }, { status: 403 });
   }
 
-  const body = await req.json();
+  let body: { token?: unknown };
+  try {
+    body = (await req.json()) as { token?: unknown };
+  } catch {
+    return NextResponse.json({ ok: false, error: "Invalid request." }, { status: 400 });
+  }
   const { token } = body;
-  if (!token) {
+  if (typeof token !== "string" || !token) {
     return NextResponse.json({ ok: false, error: "Session token required" }, { status: 400 });
   }
 
