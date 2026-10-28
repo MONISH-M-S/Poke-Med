@@ -1,7 +1,7 @@
 # Project progress log
 
 A from-the-start record of what PokéMed is, what was built, what was tested, and what is
-still open. Written 2026-10-27.
+still open. Started 2026-10-27; updated 2026-10-28.
 
 | | |
 |---|---|
@@ -22,9 +22,9 @@ still open. Written 2026-10-27.
 | Elder screen: one big **Taken** button, voice in Tamil / Hindi / English | Built and tested (see the audio test below) |
 | Missed-dose alert, one-tap nudge, weekly adherence report | Built |
 | Confidence score per medicine, "not sure, ask your pharmacist" | **Open** — the deck itself marks it `[Review built; score planned]` |
-| Reads a handwritten Rx photo | **Conditional** — true only with a vision-model key; today it falls back to browser OCR |
-| Drug data: RxNorm + openFDA | **Open** — deck says `Next:`; today there is a hand-built 60-brand map and 12 curated interaction pairs |
-| Indian brand → generic map (Dolo = paracetamol) | Built (demo map), to be expanded with a licensed Indian database |
+| Reads a handwritten Rx photo | **Built, opt-in** — local Donut OCR service; without `OCR_SERVICE_URL` it falls back to a vision key, then browser OCR |
+| Drug data: RxNorm + openFDA | **Partly done** — real Indian products and a DrugBank extract are in; RxNorm/openFDA normalisation is still next |
+| Indian brand → generic map (Dolo = paracetamol) | Built — 135,121 brand tokens, 1,679 salts |
 | Database: PostgreSQL | **Open** — state is a JSON file locally, Vercel Blob when deployed |
 | Decision support, not medical advice | Built into copy, flags and README |
 | Runs on free tiers | Vercel free tier ✓; vision model pending a key |
@@ -114,6 +114,57 @@ so:
 | Secrets | `AUTH_SECRET` (production + preview, marked secret), `POKEMED_TRUST_PROXY=1` so login throttling uses the real client IP |
 | Verified live | login → state → create pairing link → redeem → device list → elder state → nudge → revoke → revoked device `401`; browser login keypad, dashboard, **zero console errors** |
 
+### 2026-10-28 — real drug data and handwriting OCR
+
+**`Indian Medicine Dataset` (MIT) — `junioralive/Indian-Medicine-Dataset`**
+
+- Parsed all **253,973** products (**251,100** usable) into **135,121** brand tokens and
+  **1,679** salts. The CSV is malformed (unquoted commas inside composition cells), so the
+  builder splits the first seven columns and treats the rest as composition.
+- Combination families were the trap: `Ecosprin AV` and plain `Ecosprin` share a first token.
+  The builder now prefers each brand's **plain** products (brand + strength/form) when choosing
+  its composition, so `Ecosprin` stays aspirin, `Glycomet` stays metformin and `Telma` stays
+  telmisartan. `Ecosprin-AV` keeps its own aspirin + atorvastatin entry. Ambiguous tokens fell
+  from 4,779 to **987**.
+- Generated data is committed as raw text modules (`lib/data/generated/`) so deploys never need
+  the 45 MB downloads and `tsc` never infers a 135k-key object literal.
+- `scripts/fetch-data.mjs` downloads with size/checksum checks and resume;
+  `scripts/build-drug-index.mjs` rebuilds. Raw files live in `data/external/` (git-ignored).
+
+**`DrugBank 5.1 DDI extract` (CC BY 4.0, Yu 2020) — Mendeley `md5czfsfnd`**
+
+- **222,696** rows → **58,522** usable salt pairs after keeping only salts present in the
+  Indian product set and dropping the two non-specific interaction types
+  (`risk or severity of adverse effects`, `therapeutic efficacy`) that would otherwise
+  raise a vague flag for almost every pair. British/Indian spellings are canonicalised
+  (`amoxycillin` → `amoxicillin`, `paracetamol` ↔ `acetaminophen`, `clavulanic acid` →
+  `clavulanate`).
+- `lib/checks.ts` gained a fourth check: one flag per pair of medicines, capped at 12, sorted by
+  severity. Curated rules always win, so a pair is never double-reported.
+- The dataset has **no severity column**; severity is inferred from the interaction wording
+  (bleeding, arrhythmia, serotonin, rhabdomyolysis… → higher priority) and the flag says so,
+  citing the DOI instead of pretending to be licensed DrugBank data.
+- The live DrugBank checker is a commercial API (severity, evidence, management text); it is not
+  usable without a licence, so it is documented as a future upgrade, not wired in.
+
+**Handwriting OCR — `services/ocr`**
+
+- FastAPI service around `chinmays18/medical-prescription-ocr` (Donut-base, MIT, ~0.2B params,
+  reported 71% character / 84% word accuracy). Lazy model load, `/health`, optional shared key,
+  8 MB cap, CPU Dockerfile with an optional weight bake.
+- `/api/scan` now tries `OCR_SERVICE_URL` first, then `OPENAI_API_KEY`, then returns
+  `needs-text` for the browser Tesseract fallback. Unexported or unreachable service → clean
+  fallback, no invented medicines.
+- The 0.2B-parameter model stays out of the Vercel function; the hosted demo is unchanged when
+  the env var is unset.
+
+**Data scripts and tests**
+
+- `npm run data:fetch`, `npm run data:build`, `npm run data:all`.
+- `npm test` grew from 22 to **31** checks: real brand lookups, plain-vs-variant behaviour, the
+  near-miss suggestion, a DrugBank-sourced flag and curated-pair de-duplication.
+- `npx tsc --noEmit` clean; `npm run build` clean; `node scripts/vision-test.mjs` **12/12**.
+
 ---
 
 ## Test record — 2026-10-27
@@ -164,35 +215,56 @@ then drove every audio path:
 - `npm run test` → **22/22**
 - `npx tsc --noEmit` → clean; `npm run build` → clean
 
+### 5. Real-data and interaction suite — 2026-10-28
+
+| Check | Result |
+|---|---|
+| `npm run data:build` over 253,973 products + 222,696 DDI rows | 135,121 tokens, 1,679 salts, 58,522 pairs |
+| `Dolo` → paracetamol; `Combiflam` → ibuprofen + paracetamol | pass |
+| `Augmentin` → amoxicillin + clavulanate | pass |
+| Plain brand not polluted by a combination variant (`Ecosprin` → aspirin, `Glycomet` → metformin) | pass |
+| `Ecosprin-AV` keeps aspirin + atorvastatin | pass |
+| Unknown token kept but marked for review; typo `Ecosprln` suggests `Ecosprin` | pass |
+| Metformin + cimetidine raises a DrugBank-sourced flag (serum concentration) | pass |
+| Curated ibuprofen + aspirin is not duplicated by the dataset | pass |
+| `npm run test` | **31/31** |
+| `npx tsc --noEmit` / `npm run build` | clean |
+| `node scripts/vision-test.mjs` (no OCR service configured) | **12/12**, honest `needs-text` fallback |
+
 ---
 
 ## Known issues and open questions
 
-1. **No vision key configured.** The vision route returns `needs-text` and the browser reads
-   the photo. That works for printed text (verified above) and **fails on the three
-   handwritten photos** in `priscrip'`. The deck's "reads handwritten Rx: Yes" needs a key.
+1. **Handwriting OCR is opt-in.** The Donut service has to be running and `OCR_SERVICE_URL`
+   set; the hosted demo still uses the browser fallback and says so. The service has not been
+   benchmarked on the four WhatsApp photos yet — that is the next honest measurement.
 2. **One photo went missing on the review screen.** The first end-to-end run stored
    `image: null` even though the preview was on screen; two later runs — including a
    deliberate back-to-back "Load sample" + "Read prescription" click — stored the image
    correctly. Not reproduced; worth watching.
 3. **No confidence score yet** — the biggest gap between the deck and the product.
-4. **Drug data is hand-built**: 60 brands, 12 interaction pairs. RxNorm and openFDA are
-   planned in the deck and need no API key.
-5. **State is not in PostgreSQL** (JSON locally, Blob on Vercel).
-6. `npm audit` reports 3 moderate Tailwind build-time advisories.
-7. Local LAN phone access needs an inbound firewall rule for TCP 3000 (needs elevation).
+4. **Interaction severity is inferred, not licensed.** The free DrugBank extract has no
+   severity, evidence or management column; flags say this and cite the DOI. The DrugBank
+   clinical API would fix it but needs a commercial licence.
+5. **First-token brand matching still loses spaced variants.** `Ecosprin-AV` is indexed, but a
+   handwritten `Ecosprin AV` parses as `Ecosprin` because the OCR parser keeps one brand token.
+   The raw line stays on the review screen, and every line needs confirmation.
+6. **State is not in PostgreSQL** (JSON locally, Blob on Vercel).
+7. `npm audit` reports 3 moderate Tailwind build-time advisories.
+8. Local LAN phone access needs an inbound firewall rule for TCP 3000 (needs elevation).
    The deployed URL is unaffected.
-8. Two paired devices are currently listed on the local demo; `POST /api/demo`
+9. Two paired devices are currently listed on the local demo; `POST /api/demo`
    with `{"action":"reset"}` restores the seeded week (works on Vercel too).
 
 ---
 
 ## Agreed next steps (2026-10-28)
 
-1. **Vision model + confidence score** — free-tier key (Gemini Flash was the recommendation),
-   per-medicine confidence with the deck's "not sure, ask your pharmacist" wording.
-2. **RxNorm + openFDA** — normalise brand/ingredient names for clash checks, put label
-   warnings behind the interaction flags, expand the brand map.
+1. **Confidence score, and benchmark the Donut service** — run `services/ocr` over the four
+   real WhatsApp photos and record character/word accuracy; then per-medicine confidence with
+   the deck's "not sure, ask your pharmacist" wording.
+2. **RxNorm + openFDA** — normalise the 1,679 salts to standard identifiers and put label
+   warnings behind the interaction flags; keep the DrugBank extract for pair coverage.
 3. **PostgreSQL** for application state, if a database is provided.
 4. **Logo** — the supplied lockup still needs placing (login, nav, favicon, social image).
 5. **Pilot metric**: log caregiver corrections to OCR output so the deck's
@@ -208,9 +280,12 @@ npm run seed          # synthetic elder, caregiver and a week of history
 npm run dev           # http://localhost:3000
 
 node scripts/smoke.mjs        # 36 end-to-end assertions
-npm run test                  # 22 unit checks
+npm run test                  # 31 unit checks
 node scripts/vision-test.mjs  # 12 vision/OCR API checks (server must be running)
 node scripts/ocr-bench.mjs "folder-of-photos"   # OCR accuracy report over real photos
+
+npm run data:fetch            # download the 45 MB source datasets (git-ignored)
+npm run data:build            # regenerate lib/data/generated/ from them
 ```
 
 Demo: caregiver PIN `2468`. Elder screen: **Set up phone** on the dashboard, scan the QR

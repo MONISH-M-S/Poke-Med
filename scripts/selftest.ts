@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { parseSig, parsePrescription, parsePrescriptionText } from "../lib/parse/sig";
 import { detectFlags } from "../lib/checks";
+import { saltsFor, suggestBrand } from "../lib/data/brands";
 import type { DB, Medicine } from "../lib/types";
 
 let passed = 0;
@@ -197,6 +198,65 @@ ok("no flag when only one medicine is involved", () => {
   const solo = { ...db, medicines: [med({ id: "solo", brand: "Metformin", salt: ["metformin"] })] } as DB;
   const flags = detectFlags(solo, "p1", ["solo"]);
   assert.equal(flags.length, 0);
+});
+
+console.log("\nIndian product index");
+
+ok("Dolo resolves to paracetamol from the 253k-product index", () => {
+  const r = saltsFor("Dolo");
+  assert.deepEqual(r.salts, ["paracetamol"]);
+  assert.equal(r.known, true);
+});
+
+ok("Combiflam resolves to ibuprofen + paracetamol", () => {
+  const r = saltsFor("Combiflam");
+  assert.deepEqual([...r.salts].sort(), ["ibuprofen", "paracetamol"]);
+  assert.equal(r.known, true);
+});
+
+ok("Augmentin resolves to amoxicillin + clavulanate", () => {
+  const r = saltsFor("Augmentin");
+  assert.deepEqual([...r.salts].sort(), ["amoxicillin", "clavulanate"]);
+});
+
+ok("a plain brand is not given a combination variant's extra salt", () => {
+  assert.deepEqual(saltsFor("Ecosprin").salts, ["aspirin"]);
+  assert.deepEqual(saltsFor("Glycomet").salts, ["metformin"]);
+});
+
+ok("a hyphenated variant keeps its own composition", () => {
+  assert.deepEqual([...saltsFor("Ecosprin-AV").salts].sort(), ["aspirin", "atorvastatin"]);
+});
+
+ok("an unknown token is kept but marked for review", () => {
+  const r = saltsFor("Zzzznotadrug");
+  assert.deepEqual(r.salts, ["zzzznotadrug"]);
+  assert.equal(r.known, false);
+});
+
+ok("an OCR typo suggests the real brand without replacing it", () => {
+  assert.equal(suggestBrand("Ecosprln"), "ecosprin");
+});
+
+console.log("\nDrugBank interactions");
+
+ok("metformin with cimetidine raises a sourced interaction flag", () => {
+  const met = med({ id: "met", brand: "Glycomet", salt: ["metformin"] });
+  const cim = med({ id: "cim", brand: "Cimetidine", salt: ["cimetidine"] });
+  const withBoth = { ...db, medicines: [met, cim] } as DB;
+  const flags = detectFlags(withBoth, "p1", ["cim"]);
+  const flag = flags.find((f) => f.kind === "pair" && /DrugBank/i.test(f.sourceName));
+  assert.ok(flag, "expected a DrugBank-sourced interaction flag");
+  assert.match(flag!.title.toLowerCase(), /glycomet/);
+  assert.match(flag!.explanation, /serum concentration/i);
+});
+
+ok("a curated pair is not duplicated by the dataset", () => {
+  const flags = detectFlags(db, "p1", ["ibuprofen"]);
+  const duplicates = flags.filter(
+    (f) => /DrugBank/i.test(f.sourceName) && /ibuprofen \+ aspirin/i.test(f.explanation),
+  );
+  assert.equal(duplicates.length, 0);
 });
 
 console.log(`\n${passed} checks passed.\n`);

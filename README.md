@@ -23,7 +23,8 @@ still open, and how to re-run every check.
 ## What it does
 
 1. **Scan a prescription.** Photograph the page, drag a box around the medicine lines, and browser OCR reads just
-   that box. A vision model is used instead when `OPENAI_API_KEY` is set. The doctor's shorthand is then decoded —
+   that box. A vision model is used instead when `OPENAI_API_KEY` is set, or a local Donut handwriting model when
+   `OCR_SERVICE_URL` points at `services/ocr`. The doctor's shorthand is then decoded —
    `1-0-1`, `BD`, `TDS`, `HS`, `SOS`, `PC`, `AC`, `7 AM`, `8hrly`, `x 30 days`, `½`.
 2. **The caregiver confirms.** Every extracted line is editable. Nothing is scheduled until a human says it is right.
    Hospital-only lines (IV/IM/injections) and supplies are reported separately and never put on a home schedule.
@@ -36,7 +37,8 @@ still open, and how to re-run every check.
    on the caregiver dashboard.
 7. **A weekly report** shows percent taken, a day-by-day grid, and every missed dose with its time.
 8. **Conflicts are flagged for a pharmacist** — duplicate active ingredients across brand names, therapeutic
-   duplication, and a short curated list of risky pairs, each with a named source.
+   duplication, a short curated list of risky pairs, and 58,000 DrugBank-derived salt pairs. Curated rules win;
+   every flag names its source.
 
 ---
 
@@ -91,6 +93,9 @@ Optional environment (see `.env.example`):
 
 - `OPENAI_API_KEY` — reads prescription photos with a vision model.
 - Without it, photos are read in the browser with Tesseract.js, or you can paste prescription text.
+- `OCR_SERVICE_URL` — optional local prescription-OCR service (`services/ocr`, Donut handwriting model). When set,
+  `/api/scan` asks it before OpenAI. Leave it unset on Vercel; the browser fallback still works.
+- `OCR_SHARED_SECRET` — optional shared key for that service, sent as `x-ocr-key`.
 - `AUTH_SECRET` — signs session cookies. You do not need to set it: the first `npm run dev`, `build` or `start`
   generates a random one in `.env.local` (git-ignored), so the repository ships no usable secret.
 - `POKEMED_TRUST_PROXY=1` — set this only behind a proxy that overwrites `x-forwarded-for`; otherwise the sign-in
@@ -99,8 +104,10 @@ Optional environment (see `.env.example`):
 Useful scripts:
 
 ```bash
-npm test         # 22 checks: shorthand decoder, prescription parsing, safety rules
+npm test         # 31 checks: shorthand decoder, prescription parsing, drug index, safety rules
 npm run build    # production build
+npm run data:fetch   # download the 45 MB source datasets into data/external/ (git-ignored)
+npm run data:build   # regenerate lib/data/generated/ from them
 npm run ocr:bench -- "priscrip'"   # local OCR benchmark; writes only to data/ocr-bench/
 npm run ocr:lab -- "priscrip'"     # compare segmentation and preprocessing options
 ```
@@ -118,7 +125,8 @@ medicine lines before reading is the single biggest accuracy win on a phone phot
 
 The reader has two jobs, and only the second one is allowed to make decisions:
 
-1. **Read** the page into text — a vision model if configured, otherwise Tesseract.js in the browser.
+1. **Read** the page into text — a vision model or the local Donut service if configured, otherwise Tesseract.js in
+   the browser.
 2. **Decode** that text with deterministic rules, unit-tested in `npm test`.
 
 A local benchmark (`scripts/ocr-bench.mjs`) runs the real upload screen on four real WhatsApp prescription photos.
@@ -126,9 +134,17 @@ The result on this build is **0 of 4 photos yielded a medicine line** with brows
 387–1019 px, and two are handwriting; Tesseract does not read cursive. Cropping, upscaling and a grayscale contrast
 stretch make the text visibly better (`scripts/ocr-lab.mjs`), but not into a dose anyone should trust.
 
+The handwriting path is now built: **`services/ocr`** serves
+[`chinmays18/medical-prescription-ocr`](https://huggingface.co/chinmays18/medical-prescription-ocr) — a Donut
+fine-tune (MIT, ~0.2B parameters, reported 71% character / 84% word accuracy) — over FastAPI. Start it, set
+`OCR_SERVICE_URL`, and `/api/scan` asks it before OpenAI and Tesseract. It is deliberately not part of the Vercel
+bundle: a 0.2B-parameter PyTorch model does not fit in a serverless function, so the hosted demo keeps the honest
+browser fallback.
+
 The printed sample that ships with the demo parses **3 of 3** medicines, and that is the honest boundary: clean print
-works, handwriting needs a vision model. The app does not pretend otherwise — when OCR finds nothing it keeps the text
-on screen, says why, and asks you to type the lines. Every line still needs a human confirmation.
+works, handwriting needs a vision model or the Donut service. The app does not pretend otherwise — when OCR finds
+nothing it keeps the text on screen, says why, and asks you to type the lines. Every line still needs a human
+confirmation.
 
 The benchmark and lab write only to `data/ocr-bench/` and `data/ocr-lab/`, both git-ignored. The photos themselves are
 never uploaded by these scripts and are not in the repository.
@@ -143,11 +159,12 @@ Next.js (App Router) + TypeScript + Tailwind
 ├── components/     elder dose card, status pills, demo panel
 ├── lib/
 │   ├── parse/      doctor-shorthand decoder (deterministic rules)
-│   ├── checks.ts   duplicate salt, therapeutic duplication, curated risky pairs
+│   ├── checks.ts   duplicate salt, therapeutic duplication, curated + DrugBank pairs
 │   ├── state.ts    sweep for missed doses + build the dashboard view
 │   ├── db.ts       file-backed store (data/db.json)
-│   └── data/       brand→salt map, interaction list with sources
-└── data/           seeded database
+│   └── data/       generated 135k-brand index and 58k interaction pairs, plus curated overrides
+├── services/ocr/   optional FastAPI + Donut handwriting reader
+└── data/           seeded database; data/external/ holds the raw datasets (git-ignored)
 ```
 
 **The model reads; the rules decide.** A vision model (or browser OCR) produces text. A deterministic parser turns
@@ -163,7 +180,11 @@ keypad — four digits, no keyboard. The elder never types anything: a five-minu
 and Arjun can see every paired device and remove it.
 
 **Safety checks compare active ingredients, not names.** `Crocin` and `Dolo` are both paracetamol, and that is
-exactly the mistake families make. The brand→salt map is deliberately small and curated.
+exactly the mistake families make. The brand→salt map now comes from **253,973 real Indian product listings**
+(135,121 brand tokens, 1,679 salts), with curated demo brands taking precedence. For combination families the plain
+product decides the base composition — `Ecosprin` stays aspirin and does not inherit `Ecosprin AV`'s statin.
+Interaction pairs come from a free **DrugBank 5.1 extract**; that dataset has no severity column, so severity is
+inferred from the interaction wording and curated rules keep their stronger wording.
 
 ---
 
@@ -174,9 +195,10 @@ exactly the mistake families make. The brand→salt map is deliberately small an
 | Shorthand decoding, schedule generation, dose logging | A single elder and caregiver in the seeded data |
 | QR pairing, per-device list and removal | Prototype auth: one demo caregiver PIN, shown on screen; no account recovery |
 | Missed-dose detection and alerts | Alert is on the caregiver dashboard; email/push not wired by default |
-| Duplicate-salt and curated pair checks | Short curated list, not a full interaction database |
+| Duplicate-salt and therapeutic-duplication checks | Interaction *severity* is inferred from type wording; the free DrugBank extract has no licensed severity/management field |
+| 253,973-product Indian brand index and 58,522 DrugBank-derived pairs | Curated demo brands and rules override the generated data where they overlap |
 | Seven-day adherence maths | History is seeded so the report is meaningful in a demo |
-| Printed-prescription OCR | Handwriting is best-effort — which is why every line is confirmed |
+| Printed-prescription OCR | Handwriting needs the optional Donut service (`services/ocr`); the hosted demo falls back to browser OCR |
 | Tamil/Hindi interface strings | Voice depends on the device having that voice installed |
 
 "Send to pharmacist" records a review request. No pharmacist is connected in this prototype.
@@ -204,7 +226,7 @@ Closing line: **"They took care of us for a lifetime. Let's take care of their m
 ## Next
 
 - Push notifications and a real pharmacist review queue
-- A verified drug database and interaction service instead of a curated list
+- Licensed DrugBank fields (severity, evidence, management text) for the interaction flags
 - Multi-elder households and caregiver handover
 - Offline-first elder app for low-connectivity homes
 - Refill reminders and pharmacy integration

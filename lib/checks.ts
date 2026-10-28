@@ -1,6 +1,8 @@
 import type { DB, Flag, Medicine } from "./types";
 import { PAIR_RULES, DUPLICATE_SOURCE, CLASS_SOURCE } from "./data/interactions";
 import { DRUG_CLASS } from "./data/brands";
+import { INTERACTION_SOURCE, interactionSeverity, interactionTypes } from "./data/drug-index";
+import { pairKey as saltPairKey } from "./data/drug-names";
 
 const uid = () => "flg_" + Math.random().toString(36).slice(2, 10);
 
@@ -124,6 +126,56 @@ export function detectFlags(db: DB, personId: string, newMedIds: string[]): Flag
       }
     }
   }
+
+  // 4. DrugBank-derived interactions from the offline dataset. One flag per
+  //    pair of medicines, and never for a pair a curated rule already covers.
+  const curatedPairs = new Set(PAIR_RULES.map((rule) => saltPairKey(rule.a, rule.b)));
+  const ddiFlags: Flag[] = [];
+
+  for (let i = 0; i < meds.length; i += 1) {
+    for (let j = i + 1; j < meds.length; j += 1) {
+      const a = meds[i];
+      const b = meds[j];
+      if (!newMedIds.includes(a.id) && !newMedIds.includes(b.id)) continue;
+
+      const types = new Set<string>();
+      const details: string[] = [];
+      for (const sa of a.salt) {
+        for (const sb of b.salt) {
+          if (curatedPairs.has(saltPairKey(sa, sb))) continue;
+          const found = interactionTypes(sa, sb);
+          if (!found) continue;
+          found.forEach((t) => types.add(t));
+          if (details.length < 3) details.push(`${sa} + ${sb}: ${found.join(", ")}`);
+        }
+      }
+      if (types.size === 0) continue;
+
+      const key = pairKey("ddi", [a.id, b.id]);
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const list = [...types].sort();
+      ddiFlags.push({
+        id: uid(),
+        personId,
+        kind: "pair",
+        severity: interactionSeverity(list),
+        title: `Possible interaction: ${a.brand} + ${b.brand}`,
+        explanation: `DrugBank records an interaction here — ${details.join("; ")}. This is reference information, not a decision: ask a pharmacist before stopping or changing either medicine.`,
+        sourceName: INTERACTION_SOURCE.name,
+        sourceUrl: INTERACTION_SOURCE.url,
+        medicineIds: [a.id, b.id],
+        status: "open",
+        createdAt: new Date().toISOString(),
+      });
+    }
+  }
+
+  ddiFlags.sort((a, b) =>
+    a.severity === b.severity ? 0 : a.severity === "high" ? -1 : 1,
+  );
+  flags.push(...ddiFlags.slice(0, 12));
 
   return flags;
 }

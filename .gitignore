@@ -10,6 +10,9 @@ data/uploads/*
 *.tsbuildinfo
 next-env.d.ts
 
+# Raw external datasets (45 MB). Regenerate with: npm run data:fetch
+data/external/
+
 # Local OCR benchmark output and personal prescription photos: never commit.
 data/ocr-bench/
 data/ocr-lab/

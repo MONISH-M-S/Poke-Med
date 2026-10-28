@@ -54,6 +54,43 @@ async function visionTranscribe(file: File): Promise<string | null> {
   return text || null;
 }
 
+/**
+ * Optional local OCR microservice (services/ocr). Handwriting needs a model,
+ * and a 0.2B-parameter Donut will not fit in a Vercel function — so it runs
+ * separately and this route falls back cleanly when it is not configured.
+ */
+async function serviceTranscribe(file: File): Promise<string | null> {
+  const base = process.env.OCR_SERVICE_URL?.replace(/\/+$/, "");
+  if (!base) return null;
+
+  try {
+    const form = new FormData();
+    const buffer = Buffer.from(await file.arrayBuffer());
+    form.append(
+      "file",
+      new Blob([buffer], { type: file.type || "image/jpeg" }),
+      file.name || "prescription.jpg",
+    );
+
+    const headers: Record<string, string> = {};
+    const secret = process.env.OCR_SHARED_SECRET;
+    if (secret) headers["x-ocr-key"] = secret;
+
+    const res = await fetch(`${base}/ocr`, {
+      method: "POST",
+      body: form,
+      headers,
+      signal: AbortSignal.timeout(50_000),
+    });
+    if (!res.ok) return null;
+
+    const data = (await res.json()) as { text?: string };
+    return data.text?.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(req: Request) {
   const contentType = req.headers.get("content-type") || "";
 
@@ -93,7 +130,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const rawText = await visionTranscribe(file);
+    const rawText = (await serviceTranscribe(file)) ?? (await visionTranscribe(file));
     if (rawText) {
       const { medicines, ignored } = parsePrescription(rawText);
       return NextResponse.json({
@@ -116,7 +153,8 @@ export async function POST(req: Request) {
     rawText: "",
     medicines: [],
     ignored: [],
-    message:
-      "No vision key is configured, so the image will be read in the browser with OCR.",
+    message: process.env.OCR_SERVICE_URL
+      ? "The prescription OCR service could not read that photo, so it will be read in the browser instead."
+      : "No vision key is configured, so the image will be read in the browser with OCR.",
   });
 }
