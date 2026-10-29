@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from "rea
 
 /**
  * Light is the default. Dark is opt-in and remembered per browser.
- * The first paint is handled by the inline script in <head> (see
+ * The first paint is handled by the boot script in <head> (see
  * ThemeBoot), so there is no flash of the wrong theme.
  */
 type Theme = "light" | "dark";
@@ -44,13 +44,17 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   return <ThemeContext.Provider value={{ theme, setTheme }}>{children}</ThemeContext.Provider>;
 }
 
-/** Runs before hydration so the correct theme is painted on first render. */
+/**
+ * Applies the remembered theme before the first paint, so there is no flash of
+ * the wrong theme.
+ *
+ * This is a plain `<script src>`, not an inline HTML string. A src script in
+ * <head> is render-blocking, which is exactly the guarantee we want here — and
+ * it keeps the app out of injecting markup strings entirely. The security
+ * suite bans that pattern in app code, and it is right to.
+ */
 export function ThemeBoot() {
-  // Light is the unconditional default. Dark is only ever reached by an
-  // explicit choice that we then remember — never by OS preference.
-  const code = `try{document.documentElement.dataset.theme=localStorage.getItem("pokemed-theme")==="dark"?"dark":"light"}catch(e){document.documentElement.dataset.theme="light"}`;
-  // eslint-disable-next-line react/no-danger
-  return <script dangerouslySetInnerHTML={{ __html: code }} />;
+  return <script src="/theme-boot.js" />;
 }
 
 const SunIcon = (
