@@ -165,6 +165,68 @@ so:
   near-miss suggestion, a DrugBank-sourced flag and curated-pair de-duplication.
 - `npx tsc --noEmit` clean; `npm run build` clean; `node scripts/vision-test.mjs` **12/12**.
 
+### 2026-10-29 - accessibility pass, dark mode, and the wordmark
+
+**No colour-only meaning**
+
+- `components/icons.tsx` gained `CheckIcon`, `AlertIcon`, `ClockIcon`, `ArrowIcon`. Every status
+  now pairs its colour with a redundant cue: a tick for taken, a clock for due, an exclamation mark
+  plus the word **Missed** for a missed dose. Roughly a third of older adults have some colour
+  vision difference; a red/green pill was not good enough.
+- Applied through `StatusPill`, the report's day rows and Taken/Missed tiles, the dashboard week
+  bars, flag severity on `/flags`, the review confidence pill, the elder dose pill, and the
+  "N missed" count.
+- The dashboard week bars lost a `role="button"` that opened `alert()` — inaccessible and unusable
+  on a phone. Tiles carry an in-tile glyph, backed by a written legend and a per-day
+  `sr-only` summary.
+
+**Dark mode, light by default**
+
+- `app/globals.css` holds both palettes as RGB-triplet CSS variables, so Tailwind alpha still
+  works; `tailwind.config.ts` maps every colour to those tokens.
+- `components/Theme.tsx` provides the context, a no-flash `ThemeBoot` script, and a labelled
+  `ThemeToggle` (the word stays visible, never a bare icon).
+- **Light is the unconditional default.** `ThemeBoot` ignores `prefers-color-scheme`; dark is
+  reached only by the explicit toggle and is remembered in `localStorage`.
+- Solid-fill buttons use dedicated `--c-brand-hover`/`--c-alert-hover` tokens, because
+  `brand-700`/`alert` are *text* colours in dark mode and would flip to light-on-light on hover.
+- The nav header dropped `bg-white/95 backdrop-blur` for a solid `bg-surface`: no glassmorphism.
+- Eight real contrast failures were found by eye-testing and fixed properly; see below.
+
+**Wordmark and mascot**
+
+- `components/Logo.tsx` renders the wordmark as an inline SVG mark plus live text — crisp at any
+  size, and it recolours with the theme. `app/icon.svg` is the matching favicon.
+- The badger mascot is a transparent PNG at `public/mascot.png`, cut from the supplied artwork:
+  the baked-in text was cropped out (the live wordmark already says it), the paper background was
+  flood-filled to alpha from the corners so the Poké Ball's near-white panel survives, and the
+  matte was eroded 2px to remove JPEG ringing. Used where there is room — sign-in and
+  not-found — not in the compact nav, where a raster mark goes soft.
+
+**A contrast audit that can fail the build**
+
+- `scripts/contrast-audit.mjs` (`npm run test:contrast`) checks 54 foreground/background pairings
+  against WCAG AA in **both** themes: text, pills, tiles, button labels and hovers, the focus ring,
+  and the logo. Wired into `test:all`.
+- It caught eight dark-mode failures a visual check missed — `text-white` on fills that had gone
+  light, and an amber tile that kept its light-mode text. **All 54 pairings now pass in both
+  themes.**
+
+**The demo resets itself on sign-in**
+
+- Testers were landing on whatever the last person left behind, and the demo panel is easy to
+  miss. Sign-in now calls `resetIfStale()` (`lib/db.ts`), which re-seeds whenever nobody has
+  written for an hour (`lastActivityAt`, stamped on every `mutate`).
+- Deliberately staleness-gated rather than unconditional: wiping a session someone is mid-way
+  through would be worse than the stale state it replaces. Databases predating the field are
+  treated as abandoned and re-seeded once.
+- Runs only *after* the PIN verifies, so a wrong guess cannot wipe the demo. The caregiver id is
+  stable across re-seeding, so the session token minted immediately after stays valid.
+
+**Verified:** `npx tsc --noEmit` clean, `npm run build` clean, unit **35/35**, contrast **54/54
+in both themes**, security **99/99**, browser E2E **17/17**, and the sign-in and not-found pages
+checked by eye in both themes with no console errors.
+
 ---
 
 ## Test record — 2026-10-27
@@ -375,6 +437,7 @@ npm run dev           # http://localhost:3000
 
 npm test                      # 35 unit checks
 npm run build                 # production build; generates .env.local locally
+npm run test:contrast         # 54 WCAG pairings, checked in both themes
 npm run test:security         # 99 repository + live security/privacy checks
 npm run test:ocr-service      # 14 checks with a mock local OCR service
 npm run test:ui               # 17 browser end-to-end checks

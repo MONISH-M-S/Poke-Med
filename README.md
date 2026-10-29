@@ -65,6 +65,28 @@ The screenshots use the synthetic sample and the fictional demo personas. They c
 
 ---
 
+## Accessibility and theming
+
+Built for the people who actually use it — including older eyes and colour-vision differences.
+
+- **No meaning carried by colour alone.** Every status pairs its colour with a redundant cue: a tick for taken, a
+  clock for due, an exclamation mark plus the word **Missed** for a missed dose. Week bars carry the same glyph
+  inside the tile, backed by a written legend and a screen-reader summary per day.
+- **Light is the default theme**, always. Dark mode is opt-in via the toggle on the nav bar and the sign-in screen,
+  and is remembered per browser. It is never chosen from the operating system's setting, so the first thing anyone
+  sees is the light theme.
+- **`npm run test:contrast`** audits 54 foreground/background pairings against WCAG AA in *both* themes — button
+  labels, pills, tiles, focus rings and the logo. It runs as part of `npm run test:all`.
+- No gradients, glassmorphism, or low-contrast trend styling anywhere.
+- The wordmark is inline SVG plus live text, so it stays crisp at any size and recolours with the theme. The badger
+  mascot is a transparent PNG used where there is room for it: sign-in and the not-found page.
+
+**The demo resets itself.** Sign-in returns the demo to its seeded week whenever nobody has touched it for an hour,
+so a tester always lands on a known state without needing the demo panel. Recent activity is left alone — a session
+someone is mid-way through is never wiped.
+
+---
+
 ## Quick start
 
 Requires **Node.js 20+**. No database server, API key, or model download is needed.
@@ -230,6 +252,7 @@ On Vercel: set `AUTH_SECRET` explicitly, connect a private Blob store, and set
 ```bash
 npm test                      # 35 unit checks: shorthand, parsing, confidence, drug data, safety rules
 npm run build                 # production build (also generates .env.local locally)
+npm run test:contrast         # WCAG colour-contrast audit across light and dark themes
 npm run test:security         # 99 repository + live security/privacy checks
 npm run test:ocr-service      # 14 checks with a mock local OCR service
 npm run test:ui               # 17 browser end-to-end checks (one-time QR and Tesseract included)
@@ -243,6 +266,7 @@ first. `smoke.mjs` and `vision-test.mjs` expect a server already running on `htt
 | Suite | Result |
 |---|---|
 | Unit (`npm test`) | **35/35** |
+| Contrast (`npm run test:contrast`) | **54/54 in both themes** |
 | Security and privacy (`npm run test:security`) | **99/99** |
 | Mock OCR service (`npm run test:ocr-service`) | **14/14** |
 | Browser E2E (`npm run test:ui`) | **17/17** |
