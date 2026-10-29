@@ -120,6 +120,65 @@
   --c-focus: 127 216 203;
 }
 
+/*
+ * Print always uses the light palette. Browsers do not print background
+ * colours by default, so leaving dark mode alone would put near-white text
+ * on white paper — invisible. Overriding the tokens here means every
+ * surface, pill and glyph prints legibly regardless of the on-screen theme.
+ */
+@media print {
+  [data-theme="dark"] {
+    color-scheme: light;
+
+    --c-paper: 246 247 244;
+    --c-surface: 255 255 255;
+    --c-ink: 19 32 30;
+    --c-muted: 91 107 104;
+    --c-line: 221 227 223;
+    --c-shadow: 19 32 30;
+
+    --c-brand-50: 238 247 244;
+    --c-brand-100: 214 236 229;
+    --c-brand-500: 15 118 110;
+    --c-brand-600: 13 107 95;
+    --c-brand-700: 11 90 80;
+    --c-brand-900: 8 59 53;
+    --c-brand-hover: 11 90 80;
+    --c-alert-hover: 150 26 21;
+
+    --c-alert: 179 38 30;
+    --c-alert-solid: 179 38 30;
+    --c-warn: 161 92 7;
+    --c-on-amber: 122 75 6;
+
+    --c-red-50: 254 242 242;
+    --c-red-100: 253 227 227;
+    --c-red-200: 245 184 180;
+    --c-red-900: 127 29 29;
+
+    --c-amber-50: 255 248 232;
+    --c-amber-100: 253 238 200;
+    --c-amber-200: 246 215 154;
+    --c-amber-300: 240 192 106;
+    --c-amber-400: 229 165 58;
+    --c-amber-500: 201 133 24;
+    --c-amber-900: 122 75 6;
+
+    --c-emerald-400: 52 211 153;
+
+    --c-logo-navy: 43 58 103;
+    --c-logo-teal: 26 143 125;
+    --c-logo-orange: 240 149 74;
+
+    --c-elder-paper: 251 251 248;
+    --c-taken: 13 107 95;
+    --c-taken-shadow: 8 59 53;
+    --c-taken-off: 159 179 174;
+    --c-taken-off-shadow: 125 145 140;
+    --c-focus: 15 118 110;
+  }
+}
+
 html,
 body {
   background: rgb(var(--c-paper));

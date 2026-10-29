@@ -50,7 +50,7 @@ export default function ReportPage() {
 
   return (
     <div className="container-app py-8">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between print:hidden">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="label">Caregiver report</p>
           <h1 className="h1 mt-1">
@@ -58,7 +58,7 @@ export default function ReportPage() {
           </h1>
           <p className="muted mt-2">Seven days of dose history, as recorded.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 print:hidden">
           <Link href="/" className="btn-ghost">
             Dashboard
           </Link>
