@@ -25,6 +25,8 @@ medicines were actually taken. The result is missed treatment and avoidable hosp
 - Every dose is logged as taken or missed, with a timestamp.
 - If a dose isn't confirmed within 60 minutes, the caregiver is alerted.
 - The caregiver gets a seven-day adherence report: percent taken and the missed doses.
+- A **Share with doctor** QR hands a doctor a read-only copy of that report: no login, one open, ten minutes, hashed
+  token, local QR.
 - Medicines that might conflict are flagged for a pharmacist, with the source shown.
 
 ## Why it stands out
@@ -55,7 +57,8 @@ Arjun and Lakshmi are fictional demo personas; every seeded record is synthetic.
 | 0:55 | Taken → dashboard turns green live | "Arjun sees it turn green from another city." |
 | 1:10 | Demo → Skip to next missed dose → red alert | "If a dose isn't confirmed in time, he knows — instead of finding out weeks later." |
 | 1:30 | Report: 88%, missed list | "A week at a glance, and exactly which doses were missed." |
-| 1:50 | Flag: duplicate paracetamol, source shown | "This is what a reminder app would never catch. Two medicines that both contain paracetamol. Flagged for a pharmacist, with the source. We never say 'don't take it.'" |
+| 1:40 | **Share with doctor** → one-time QR | "He can hand the doctor this report without giving away an account. One scan, one open, ten minutes." |
+| 1:55 | Flag: duplicate paracetamol, source shown | "This is what a reminder app would never catch. Two medicines that both contain paracetamol. Flagged for a pharmacist, with the source. We never say 'don't take it.'" |
 | 2:15 | Close | "They took care of us for a lifetime. Let's take care of their medicines." |
 
 Rehearse to 2:15–2:40. Never let the live demo pass three minutes.

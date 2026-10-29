@@ -17,6 +17,7 @@
 import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { spawn, spawnSync } from "node:child_process";
 
@@ -41,6 +42,7 @@ const forbidden = [
   [/^\.env\.(?!example$)/, "a local env file"],
   [/^data\/db\.json/, "the runtime database"],
   [/^data\/elder-sessions\.json/, "paired-device state"],
+  [/^data\/report-shares\.json/, "one-time report tokens"],
   [/^data\/uploads\/(?!\.gitkeep$)/, "an uploaded photo"],
   [/^data\/external\//, "raw downloaded datasets"],
   [/^data\/ocr-(bench|lab)\//, "OCR bench/lab output"],
@@ -54,8 +56,15 @@ for (const [pattern, label] of forbidden) {
   check(`repository does not track ${label}`, hit.length === 0, hit.join(", "));
 }
 
-for (const file of [".env.local", "data/db.json", "data/elder-sessions.json", "data/ocr-lab"]) {
-  if (!fs.existsSync(path.join(ROOT, file))) continue;
+for (const file of [
+  ".env.local",
+  "data/db.json",
+  "data/elder-sessions.json",
+  "data/report-shares.json",
+  "data/ocr-lab",
+]) {
+  // git check-ignore works for paths that do not exist yet, so the audit count
+  // stays stable on a fresh clone.
   let ignored = true;
   try {
     execFileSync("git", ["check-ignore", "-q", file], { cwd: ROOT });
@@ -66,8 +75,13 @@ for (const file of [".env.local", "data/db.json", "data/elder-sessions.json", "d
 }
 
 const textExt = /\.(ts|tsx|js|mjs|json|md|css|example|txt|html|yml|yaml)$/i;
+// Exclude this audit script itself: its sink-pattern regexes would otherwise
+// match their own source text.
 const sourceFiles = tracked.filter(
-  (file) => /^(app|components|lib|scripts)\//.test(file) && /\.(ts|tsx|mjs|js)$/.test(file),
+  (file) =>
+    /^(app|components|lib|scripts)\//.test(file) &&
+    /\.(ts|tsx|mjs|js)$/.test(file) &&
+    file !== "scripts/security-test.mjs",
 );
 const textFiles = tracked.filter((file) => textExt.test(file) && !file.endsWith("package-lock.json"));
 
@@ -155,6 +169,9 @@ const app = spawn(process.execPath, [nextBin, "start", "-p", String(port)], {
     OCR_SHARED_SECRET: "",
     POKEMED_TRUST_PROXY: "",
     NEXT_PUBLIC_APP_URL: BASE,
+    // Keep the audit deterministic and never touch a real Blob store.
+    BLOB_STORE_ID: "",
+    BLOB_READ_WRITE_TOKEN: "",
   },
   stdio: "ignore",
   windowsHide: true,
@@ -304,6 +321,113 @@ try {
     "the paired phone is redirected away from caregiver pages",
     elderAtUpload.status === 307 && /\/elder$/.test(elderAtUpload.headers.get("location") ?? ""),
   );
+
+  // One-time doctor report link: public landing, caregiver-only creation,
+  // hashed token at rest, explicit consumption, expiry and no data leakage.
+  const deniedShare = await fetch(BASE + "/api/report/share", { method: "POST" });
+  check("signed-out visitors cannot create report links", deniedShare.status === 403);
+  const elderShare = await fetch(BASE + "/api/report/share", {
+    method: "POST",
+    headers: { cookie: elderCookie },
+  });
+  check("the paired phone cannot create report links", elderShare.status === 403);
+
+  const shareRes = await fetch(BASE + "/api/report/share", {
+    method: "POST",
+    headers: { cookie: caregiverCookie },
+  });
+  const share = await shareRes.json();
+  let reportToken = "";
+  try {
+    reportToken = new URL(share.reportUrl).pathname.split("/").filter(Boolean).pop() ?? "";
+  } catch {
+    reportToken = "";
+  }
+  check(
+    "caregiver can create a one-time report link",
+    shareRes.ok && /^[A-Za-z0-9_-]{40,64}$/.test(reportToken),
+    `status ${shareRes.status}`,
+  );
+  check("the report link expires in ten minutes", share.expiresIn === 600);
+  check("the doctor QR is generated locally as a data URL", String(share.qr).startsWith("data:image/png;base64,"));
+  check("the doctor QR contains no third-party URL", !/https?:\/\//.test(String(share.qr)));
+  check("the report link uses this app's origin", String(share.reportUrl).startsWith(BASE + "/share/report/"));
+
+  const shareStore = path.join(ROOT, "data", "report-shares.json");
+  const shareStoreText = fs.existsSync(shareStore) ? fs.readFileSync(shareStore, "utf8") : "";
+  check(
+    "report tokens are hashed at rest",
+    reportToken.length > 0 &&
+      !shareStoreText.includes(reportToken) &&
+      shareStoreText.includes(createHash("sha256").update(reportToken).digest("hex")),
+  );
+
+  const landing = await fetch(BASE + `/share/report/${reportToken}`);
+  const landingText = await landing.text();
+  check("the report landing page is public", landing.ok);
+  check(
+    "the landing page reveals no report data before opening",
+    !/Doses taken|Missed doses|Lakshmi/i.test(landingText),
+  );
+  check(
+    "the report landing page is not cached or indexed",
+    landing.headers.get("cache-control") === "no-store" &&
+      /noindex/.test(landing.headers.get("x-robots-tag") ?? ""),
+  );
+  check("the report landing page uses a no-referrer policy", landing.headers.get("referrer-policy") === "no-referrer");
+  const reopenLanding = await fetch(BASE + `/share/report/${reportToken}`);
+  check("merely loading the landing page does not consume the link", reopenLanding.ok);
+
+  const openReport = await fetch(BASE + `/api/report/share/${reportToken}`, { method: "POST" });
+  const reportBody = await openReport.json();
+  check(
+    "a valid report link returns the seven-day summary",
+    openReport.ok && reportBody.report?.week?.days?.length === 7 && typeof reportBody.report.elderName === "string",
+    `status ${openReport.status}`,
+  );
+  check(
+    "the report payload has no hashes, tokens or secrets",
+    !/pinHash|AUTH_SECRET|tokenHash|"hash"|scrypt:/i.test(JSON.stringify(reportBody)),
+  );
+  check("the report response is not cached", openReport.headers.get("cache-control") === "no-store");
+
+  const secondOpen = await fetch(BASE + `/api/report/share/${reportToken}`, { method: "POST" });
+  check("the report link is single-use", secondOpen.status === 410, String(secondOpen.status));
+  const usedLanding = await fetch(BASE + `/share/report/${reportToken}`);
+  const usedText = await usedLanding.text();
+  check(
+    "a used link shows a neutral message",
+    /not available/i.test(usedText) && !/Lakshmi|Doses taken/i.test(usedText),
+  );
+
+  // Expire a second link by editing the local token store; the test server is
+  // forced onto the file backend below.
+  const expiringRes = await fetch(BASE + "/api/report/share", {
+    method: "POST",
+    headers: { cookie: caregiverCookie },
+  });
+  const expiring = await expiringRes.json();
+  let expiringToken = "";
+  try {
+    expiringToken = new URL(expiring.reportUrl).pathname.split("/").filter(Boolean).pop() ?? "";
+  } catch {
+    expiringToken = "";
+  }
+  let expiryPrepared = false;
+  if (expiringToken && fs.existsSync(shareStore)) {
+    const store = JSON.parse(fs.readFileSync(shareStore, "utf8"));
+    const hash = createHash("sha256").update(expiringToken).digest("hex");
+    const record = store.tokens.find((item) => item.hash === hash);
+    if (record) {
+      record.expiresAt = Date.now() - 1;
+      fs.writeFileSync(shareStore, JSON.stringify(store, null, 2));
+      expiryPrepared = true;
+    }
+  }
+  const expiredOpen = expiryPrepared
+    ? await fetch(BASE + `/api/report/share/${expiringToken}`, { method: "POST" })
+    : null;
+  check("an expired report link is rejected", expiredOpen?.status === 410, `status ${expiredOpen?.status ?? "not prepared"}`);
 
   const devices = await fetch(BASE + "/api/pair/devices", { headers: { cookie: caregiverCookie } });
   const devicesBody = await devices.json();

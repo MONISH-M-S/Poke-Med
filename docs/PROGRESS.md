@@ -20,6 +20,7 @@ still open. Started 2026-10-27; updated 2026-10-29.
 | Photo or typed Rx → reviewed schedule | Built and tested |
 | Elder screen: one big **Taken** button, voice in Tamil / Hindi / English | Built and tested (see the audio test below) |
 | Missed-dose alert, one-tap nudge, weekly adherence report | Built |
+| One-time doctor report link | **Built** — 10-minute hashed token, explicit first-open consumption, read-only public page |
 | Confidence score per medicine, "not sure, ask your pharmacist" | **Built** — rule-based read-confidence chip on every review row, 4 unit tests, low-score pharmacist wording |
 | Reads a handwritten Rx photo | **Built, opt-in** — local Donut OCR service; without `OCR_SERVICE_URL` it falls back to a vision key, then browser OCR |
 | Drug data: RxNorm + openFDA | **Partly done** — real Indian products and a DrugBank extract are in; RxNorm/openFDA normalisation is still next |
@@ -267,7 +268,7 @@ then drove every audio path:
 - Scrubbed repository/deployment identifiers, the LAN address, and stale test counts from the docs. The demo personas
   (Arjun and Lakshmi) are fictional and every seeded record is synthetic.
 
-**Final results**
+**Results at this stage** (current totals are in section 7)
 
 | Suite | Result |
 |---|---|
@@ -279,6 +280,40 @@ then drove every audio path:
 | Vision/OCR API (`node scripts/vision-test.mjs`) | **12/12** |
 | `npx tsc --noEmit` / `npm run build` | clean |
 | `npm audit --omit=dev` | 0 vulnerabilities |
+
+### 7. One-time doctor report link — 2026-10-29
+
+- **Separate token type.** `lib/report-share.ts` issues a 256-bit base64url token valid for
+  ten minutes. Only its SHA-256 hash is stored (`data/report-shares.json`, git-ignored, or a
+  private Blob); used/expired records are pruned after 24 hours.
+- **Two-step redemption.** The QR opens a public landing page that only *peeks* at the token.
+  The report is returned only after an explicit **View report** POST, so a scanner or chat
+  app's link preview cannot burn the link. A second POST returns `410`.
+- **Caregiver-only creation.** `POST /api/report/share` verifies the caregiver session and
+  the linked elder, generates the QR locally with `qrcode`, and uses
+  `NEXT_PUBLIC_APP_URL`/the reachable request origin. The consume endpoint is public but
+  returns only `elderName`, `generatedAt` and the seven-day `week` summary.
+- **Read-only UI.** Extracted the report cards into `components/ReportView.tsx`; the
+  caregiver page and the doctor page share it. The doctor page hides the caregiver nav and
+  demo panel, offers Print / save as PDF, and cannot change a dose.
+- **Headers and caching.** The public page is `no-store`, `no-referrer`, `noindex` and
+  `X-Robots-Tag: noindex, nofollow, noarchive`. API responses are `no-store`.
+- **Tests added.** Security: role gates, local QR, URL origin, hashed-at-rest, no data on
+  the landing page, GET does not consume, valid open, single use, expiry, and no
+  hash/token/secret leakage. Browser E2E: create QR, open signed-out, see the report,
+  reload and get the neutral refusal.
+
+**Current results**
+
+| Suite | Result |
+|---|---|
+| Unit (`npm test`) | **35/35** |
+| Security and privacy (`npm run test:security`) | **99/99** |
+| Mock OCR service (`npm run test:ocr-service`) | **14/14** |
+| Browser E2E (`npm run test:ui`) | **17/17** |
+| API smoke (`node scripts/smoke.mjs`) | **36/36** |
+| Vision/OCR API (`node scripts/vision-test.mjs`) | **12/12** |
+| `npx tsc --noEmit` / `npm run build` | clean |
 
 ---
 
@@ -309,6 +344,10 @@ then drove every audio path:
     The deployed URL is unaffected.
 11. `POST /api/demo` with `{"action":"reset"}` restores the seeded week and clock, but it does
     **not** revoke paired phones. Remove them from the Paired devices card when starting clean.
+12. One-time report consumption is serialized per server process. Two simultaneous redemptions
+    on different Vercel instances could theoretically both succeed; the link still expires in
+    ten minutes and only a hash is stored. A conditional-write/KV claim is the next hardening
+    step.
 
 ---
 
@@ -336,9 +375,9 @@ npm run dev           # http://localhost:3000
 
 npm test                      # 35 unit checks
 npm run build                 # production build; generates .env.local locally
-npm run test:security         # 78 repository + live security/privacy checks
+npm run test:security         # 99 repository + live security/privacy checks
 npm run test:ocr-service      # 14 checks with a mock local OCR service
-npm run test:ui               # 13 browser end-to-end checks
+npm run test:ui               # 17 browser end-to-end checks
 
 # These two need a server already running on http://localhost:3000:
 node scripts/smoke.mjs        # 36 API assertions

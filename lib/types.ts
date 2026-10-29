@@ -155,3 +155,10 @@ export interface AppState {
   /** Set when the caregiver pressed "Send a nudge" in the last five minutes. */
   nudge?: Nudge;
 }
+
+/** The sanitized, read-only payload behind a one-time doctor link. */
+export interface SharedReport {
+  elderName: string;
+  generatedAt: string;
+  week: AppState["week"];
+}

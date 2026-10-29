@@ -19,7 +19,7 @@ export default function Nav() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (pathname === "/login" || pathname === "/elder") return;
+    if (pathname === "/login" || pathname === "/elder" || pathname.startsWith("/share/report")) return;
     let alive = true;
     fetch("/api/auth/me")
       .then((res) => (res.ok ? res.json() : null))
@@ -32,7 +32,7 @@ export default function Nav() {
     };
   }, [pathname]);
 
-  if (pathname === "/login" || pathname === "/elder") return null;
+  if (pathname === "/login" || pathname === "/elder" || pathname.startsWith("/share/report")) return null;
 
   async function signOut() {
     setBusy(true);

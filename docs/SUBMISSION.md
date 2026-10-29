@@ -58,7 +58,8 @@ PokéMed closes that loop in four steps:
 3. **Act** — the elder's phone is paired by scanning a QR code (never a PIN). Their screen has large type, a spoken
    reminder, and one **Taken** button.
 4. **Close the loop** — every dose is logged. A dose not confirmed within 60 minutes becomes *missed*, and an alert
-   appears on the caregiver's dashboard, with a seven-day adherence report.
+   appears on the caregiver's dashboard, with a seven-day adherence report. The caregiver can hand a doctor a
+   one-time QR link to that report: read-only, no sign-in, valid for ten minutes and consumed on first open.
 
 Separately, the app flags possible medication conflicts for a pharmacist — two brands with the same active ingredient
 (Crocin and Dolo are both paracetamol), therapeutic duplication, and a short cited list of risky pairs.
@@ -71,6 +72,8 @@ Separately, the app flags possible medication conflicts for a pharmacist — two
   the schedule. No model is ever asked to invent a dose.
 - **Auth designed for the actual users.** The caregiver types a four-digit PIN. The elder types nothing: a single-use,
   five-minute QR link issues a 180-day cookie tied to a device id that the caregiver can revoke from the dashboard.
+  The doctor also types nothing: a separate one-time report token is stored only as a SHA-256 hash, expires in ten
+  minutes, and is consumed by an explicit **View report** action so a QR preview cannot burn it.
 - **One clock.** Every "now" goes through one module, so the demo panel can jump to the next dose or the next missed
   dose on stage — no waiting for a cron job.
 - **Honest OCR.** Clean print parses 3 of 3 sample lines. Handwriting is best-effort, and the app says so instead of
@@ -79,7 +82,7 @@ Separately, the app flags possible medication conflicts for a pharmacist — two
 ## Built with
 
 `Next.js` · `TypeScript` · `Tailwind CSS` · `Node.js` · `Web Crypto (HMAC)` · `scrypt` · `Tesseract.js` ·
-`OpenAI vision (optional)` · `qrcode` (local pairing QR) · `Playwright` (screenshots and browser tests)
+`OpenAI vision (optional)` · `qrcode` (local pairing and report QR) · `Playwright` (screenshots and browser tests)
 
 ## What makes it different
 
@@ -101,10 +104,11 @@ Separately, the app flags possible medication conflicts for a pharmacist — two
 
 ## What we are proud of
 
-- **35 unit checks** on the parser, confidence scoring and safety rules; **78 security/privacy checks**; **14 mock OCR
-  service checks**; **13 browser end-to-end checks**; and 36 API smoke checks — all green.
-- A full security pass: no shipped signing secret and fail-closed production, local-only pairing QR, CSP, httpOnly
-  cookies, per-device revocation, no PIN hash in API responses, and no elder PIN door to attack.
+- **35 unit checks** on the parser, confidence scoring and safety rules; **99 security/privacy checks**; **14 mock OCR
+  service checks**; **17 browser end-to-end checks**; and 36 API smoke checks — all green.
+- A full security pass: no shipped signing secret and fail-closed production, local-only pairing and report QR codes,
+  hashed single-use report tokens, CSP, httpOnly cookies, per-device revocation, no PIN hash in API responses, and no
+  elder PIN door to attack.
 - The demo runs offline: sample prescription, seeded week, no external service required.
 
 ## Honest limitations
@@ -135,7 +139,7 @@ households and caregiver handover · an offline-first elder app · refill remind
 | 1:00 | Demo → **Jump to the next dose**, look at the paired phone | "One screen. Big text, spoken aloud, one button." |
 | 1:10 | Press **Taken** on the phone | "The dashboard turns green in the same second." |
 | 1:25 | Demo → **Skip to next missed dose** | "Unconfirmed for an hour, and he knows — instead of finding out weeks later." |
-| 1:40 | Report | "A week at a glance, and exactly which doses were missed." |
+| 1:40 | Report → **Share with doctor** | "A week at a glance. He can hand the doctor a one-time QR — read-only, no login, gone after it opens." |
 | 1:55 | Flag with source | "Two brands, same paracetamol. A reminder app would never catch this." |
 | 2:20 | Dashboard → **Paired devices** → **Remove** | "If the phone is lost, he removes it — and it stops working immediately." |
 | 2:30 | Close | "They took care of us for a lifetime. Let's take care of their medicines." |

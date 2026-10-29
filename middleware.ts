@@ -38,6 +38,13 @@ export async function middleware(req: NextRequest) {
   // Auth endpoints — public
   if (pathname.startsWith("/api/auth")) return NextResponse.next();
 
+  // One-time doctor report link — public. The landing page only peeks at the
+  // token; an explicit POST consumes it. The create endpoint is public at the
+  // middleware layer but checks for a caregiver session itself.
+  if (pathname.startsWith("/share/report") || pathname.startsWith("/api/report/share")) {
+    return NextResponse.next();
+  }
+
   const isApi = pathname.startsWith("/api");
 
   // Elder routes — require elder session cookie

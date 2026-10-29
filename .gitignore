@@ -6,6 +6,7 @@ out
 !.env.example
 data/db.json*
 data/elder-sessions.json
+data/report-shares.json
 data/uploads/*
 !data/uploads/.gitkeep
 .tools

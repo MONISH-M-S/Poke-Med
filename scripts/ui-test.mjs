@@ -9,9 +9,11 @@
  *   2. Paste an unknown brand and see the low-confidence safety copy.
  *   3. Read the sample prescription, edit one field, save, and land on the
  *      schedule.
- *   4. Load the sample photo, run browser OCR, and check the review screen
+ *   4. Create a one-time QR report link, open it in a signed-out browser, and
+ *      confirm the first view works while a reload is refused.
+ *   5. Load the sample photo, run browser OCR, and check the review screen
  *      still shows the photo (the old intermittent "missing image" bug).
- *   5. Assert there were no page errors or console errors.
+ *   6. Assert there were no page errors or console errors.
  *
  * The photo pass uses Tesseract in Chromium, so it needs one network fetch for
  * the OCR worker on first run.
@@ -61,7 +63,7 @@ const nextBin = path.join(ROOT, "node_modules", "next", "dist", "bin", "next");
 
 const app = spawn(process.execPath, [nextBin, "start", "-p", String(port)], {
   cwd: ROOT,
-  env: { ...process.env, OPENAI_API_KEY: "", OCR_SERVICE_URL: "" },
+  env: { ...process.env, OPENAI_API_KEY: "", OCR_SERVICE_URL: "", NEXT_PUBLIC_APP_URL: BASE },
   stdio: "ignore",
   windowsHide: true,
 });
@@ -143,7 +145,35 @@ try {
   }
   check("the edited medicine is on the schedule", editOnSchedule);
 
-  // 4. Photo path: sample photo -> browser OCR -> review with the image
+  // 4. One-time doctor report QR: create it, open it signed out, then confirm
+  // that the used link cannot be replayed in a refreshed browser.
+  await page.goto(BASE + "/report", { waitUntil: "domcontentloaded" });
+  await page.getByRole("button", { name: "Share with doctor" }).click();
+  await page.getByAltText("One-time report QR code").waitFor({ timeout: 15_000 });
+  const shareUrl = (await page.locator("p.break-all").first().textContent())?.trim() ?? "";
+  check("the report page shows a one-time QR link", shareUrl.startsWith(BASE + "/share/report/"));
+
+  const publicContext = await browser.newContext();
+  const publicPage = await publicContext.newPage();
+  publicPage.on("pageerror", (e) => pageErrors.push(e.message));
+  publicPage.on("console", (m) => {
+    if (m.type() === "error") consoleErrors.push(m.text());
+  });
+  await publicPage.goto(shareUrl, { waitUntil: "domcontentloaded" });
+  const landingHasNoReport = (await publicPage.getByText("Doses taken").count()) === 0;
+  await publicPage.getByRole("button", { name: "View report" }).click();
+  await publicPage.getByText("Doses taken").waitFor({ timeout: 15_000 });
+  check("the doctor can open the read-only report without signing in", landingHasNoReport);
+  check(
+    "the shared report shows the week summary",
+    (await publicPage.getByText(/Shared medication report/i).count()) > 0,
+  );
+  await publicPage.reload({ waitUntil: "domcontentloaded" });
+  await publicPage.getByText(/not available/i).waitFor({ timeout: 15_000 });
+  check("reloading a consumed report link is refused", true);
+  await publicContext.close();
+
+  // 5. Photo path: sample photo -> browser OCR -> review with the image
   await page.goto(BASE + "/upload", { waitUntil: "domcontentloaded" });
   await page.getByRole("button", { name: "Load sample photo" }).click();
   await page.locator("#rx-preview").waitFor({ state: "visible", timeout: 30_000 });

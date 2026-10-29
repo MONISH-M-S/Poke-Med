@@ -42,6 +42,16 @@ const nextConfig = {
           { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
         ],
       },
+      {
+        // A one-time report URL contains a bearer token: keep it out of search,
+        // caches and cross-origin Referer headers.
+        source: "/share/report/:path*",
+        headers: [
+          { key: "Referrer-Policy", value: "no-referrer" },
+          { key: "Cache-Control", value: "no-store" },
+          { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },
+        ],
+      },
     ];
   },
 };

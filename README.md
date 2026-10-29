@@ -35,7 +35,9 @@ from the dashboard. The hosted demo uses browser OCR unless a vision/OCR service
 6. **Missed doses reach the caregiver.** After a 60-minute grace period the dose becomes missed and an alert appears
    on the caregiver dashboard.
 7. **A weekly report** shows percent taken, a day-by-day grid, and every missed dose with its time.
-8. **Conflicts are flagged for a pharmacist** — duplicate active ingredients across brand names, therapeutic
+8. **Share the report with a doctor.** A one-time, ten-minute link/QR opens a read-only copy without a caregiver
+   login. The token is hashed at rest, consumed on the first explicit open, and the QR is generated locally.
+9. **Conflicts are flagged for a pharmacist** — duplicate active ingredients across brand names, therapeutic
    duplication, a short curated list of risky pairs, and 58,522 DrugBank-derived salt pairs. Curated rules win;
    every flag names its source. Flags never tell anyone to stop a medicine.
 
@@ -102,6 +104,9 @@ something else — a tunnel, a fixed hostname — set `NEXT_PUBLIC_APP_URL` befo
   patient data.
 - **Pairing QR is local.** The QR is generated on the server as a data URL; the single-use pairing token is never
   sent to a third-party QR image service.
+- **One-time report links.** The doctor QR is also generated locally. Only a SHA-256 hash of the report token is
+  stored; the link expires in 10 minutes and is consumed on the first explicit **View report** tap. The landing page
+  does not show patient data, and the public report page is `no-store`, `no-referrer`, and `noindex`.
 - **Session security.** HMAC-signed, http-only, SameSite=Lax cookies; scrypt-hashed PIN; elder devices are separate,
   revocable, and cannot reach caregiver APIs. The API never returns the PIN hash.
 - **Fail closed.** `AUTH_SECRET` is generated into `.env.local` for local runs and is **required in production**.
@@ -114,8 +119,9 @@ something else — a tunnel, a fixed hostname — set `NEXT_PUBLIC_APP_URL` befo
   throttle. Treat the public demo as a demo.
 
 `npm run test:security` checks the repository for tracked secrets/databases/photos, then runs a live audit of auth
-gates, cookie flags, forged sessions, elder/caregiver separation, pairing-token single use and revocation, upload
-limits, malformed input, headers, secret leakage, and the sign-in throttle.
+gates, cookie flags, forged sessions, elder/caregiver separation, pairing-token single use and revocation, one-time
+report creation/consumption/expiry and token hashing, upload limits, malformed input, headers, secret leakage, and the
+sign-in throttle.
 
 ---
 
@@ -161,14 +167,15 @@ aid, not a medical judgement, and the human still confirms every line.
 
 ```
 Next.js (App Router) + TypeScript + Tailwind
-├── app/            caregiver dashboard, scan, review, schedule, report, elder screen, flags
-├── components/     elder dose card, status pills, demo panel
+├── app/            caregiver dashboard, scan, review, schedule, report, elder screen, flags, public report link
+├── components/     elder dose card, status pills, shared report view, demo panel
 ├── lib/
 │   ├── parse/      doctor-shorthand decoder (deterministic rules)
 │   ├── checks.ts   duplicate salt, therapeutic duplication, curated + DrugBank pairs
 │   ├── state.ts    missed-dose sweep + sanitised dashboard view
 │   ├── db.ts       file-backed store (data/db.json) or private Vercel Blob
 │   ├── auth-*.ts   scrypt PIN hashing, HMAC sessions, secret handling
+│   ├── report-share.ts  hashed, single-use, ten-minute doctor-report tokens
 │   └── data/       generated 135k-brand index and 58k interaction pairs, plus curated overrides
 ├── services/ocr/   optional FastAPI + Donut handwriting reader
 └── data/           seeded database; data/external/ holds the raw datasets (git-ignored)
@@ -184,7 +191,9 @@ runs on each state read, so there is no cron job and nothing to wait for on stag
 **Two doors, one app.** `middleware.ts` checks a signed session on every page and API call. A paired phone can only
 reach `/elder` and its three endpoints (`/api/state`, `/api/doses`, `/api/auth/me`); a caregiver session can reach
 everything. The caregiver's whole login is a keypad — four digits, no keyboard. The elder never types anything: a
-five-minute, single-use QR link pairs her phone, and Arjun can see every paired device and remove it.
+five-minute, single-use QR link pairs her phone, and Arjun can see every paired device and remove it. The one public
+exception is a one-time doctor link: it peeks at a hashed token, then consumes it on an explicit POST and returns only
+the sanitized week summary.
 
 **Safety checks compare active ingredients, not names.** `Crocin` and `Dolo` are both paracetamol, and that is
 exactly the mistake families make. The brand→salt map comes from **253,973 real Indian product listings**
@@ -206,7 +215,7 @@ Copy `.env.example` if you need to override anything. All values are optional lo
 | `OPENAI_VISION_MODEL` | Optional model override (default `gpt-4o-mini`). |
 | `OCR_SERVICE_URL` | Optional local Donut service (`services/ocr`); tried before OpenAI. |
 | `OCR_SHARED_SECRET` | Optional key for that service, sent as `x-ocr-key`. |
-| `NEXT_PUBLIC_APP_URL` | Public origin used in the pairing QR (tunnel/hostname). |
+| `NEXT_PUBLIC_APP_URL` | Public origin used in pairing and doctor-report QR codes (tunnel/hostname). |
 | `POKEMED_TRUST_PROXY` | Set to `1` only behind a proxy that overwrites `x-forwarded-for`; otherwise the login throttle ignores it. |
 | `BLOB_STORE_ID` / `BLOB_READ_WRITE_TOKEN` | Enables private Vercel Blob storage. |
 | `RESEND_API_KEY` / `ALERT_FROM_EMAIL` | Optional email alerts (not wired by default). |
@@ -221,9 +230,9 @@ On Vercel: set `AUTH_SECRET` explicitly, connect a private Blob store, and set
 ```bash
 npm test                      # 35 unit checks: shorthand, parsing, confidence, drug data, safety rules
 npm run build                 # production build (also generates .env.local locally)
-npm run test:security         # 78 repository + live security/privacy checks
+npm run test:security         # 99 repository + live security/privacy checks
 npm run test:ocr-service      # 14 checks with a mock local OCR service
-npm run test:ui               # 13 browser end-to-end checks (Tesseract photo path included)
+npm run test:ui               # 17 browser end-to-end checks (one-time QR and Tesseract included)
 node scripts/smoke.mjs        # 36 API checks against a server on :3000
 node scripts/vision-test.mjs  # 12 OCR API checks against a server on :3000
 ```
@@ -234,9 +243,9 @@ first. `smoke.mjs` and `vision-test.mjs` expect a server already running on `htt
 | Suite | Result |
 |---|---|
 | Unit (`npm test`) | **35/35** |
-| Security and privacy (`npm run test:security`) | **78/78** |
+| Security and privacy (`npm run test:security`) | **99/99** |
 | Mock OCR service (`npm run test:ocr-service`) | **14/14** |
-| Browser E2E (`npm run test:ui`) | **13/13** |
+| Browser E2E (`npm run test:ui`) | **17/17** |
 | API smoke (`node scripts/smoke.mjs`) | **36/36** |
 | Vision/OCR API (`node scripts/vision-test.mjs`) | **12/12** |
 | `npx tsc --noEmit` / `npm run build` | clean |
@@ -244,8 +253,9 @@ first. `smoke.mjs` and `vision-test.mjs` expect a server already running on `htt
 
 The security suite covers, among other things: signed-out gates, http-only/SameSite cookies, forged and tampered
 sessions, the closed elder PIN door, caregiver/elder role separation, pairing-token single use, device revocation,
-upload type/size validation, malformed JSON, response caching, CSP/security headers, no PIN hash or server secret in
-API responses or the client bundle, and the sign-in throttle (including `x-forwarded-for` rotation).
+one-time report role gates, token hashing, landing-page data leakage, no-store/no-referrer headers, single use and
+expiry, upload type/size validation, malformed JSON, response caching, CSP/security headers, no PIN hash or server
+secret in API responses or the client bundle, and the sign-in throttle (including `x-forwarded-for` rotation).
 
 ---
 
@@ -268,6 +278,7 @@ API responses or the client bundle, and the sign-in throttle (including `x-forwa
 |---|---|
 | Shorthand decoding, schedule generation, dose logging | A single elder and caregiver in the seeded data |
 | QR pairing, per-device list and removal | Prototype auth: one demo caregiver PIN, shown on screen; no account recovery |
+| One-time doctor report link, 10-minute expiry, hashed token | The doctor needs no account; the link is read-only and stops after the first open |
 | Missed-dose detection and alerts | Alert is on the caregiver dashboard; email/push not wired by default |
 | Duplicate-salt and therapeutic-duplication checks | Interaction *severity* is inferred from type wording; the free extract has no licensed severity/management field |
 | 253,973-product Indian brand index and 58,522 DrugBank-derived pairs | Curated demo brands and rules override the generated data where they overlap |
@@ -287,7 +298,8 @@ API responses or the client bundle, and the sign-in throttle (including `x-forwa
 3. Demo → **Jump to the next dose**, then look at the paired phone. It speaks the dose; **Taken** is pressed.
 4. The caregiver dashboard turns green in the same second.
 5. Demo → **Skip to next missed dose** → the alert appears.
-6. The report shows the week.
+6. The report shows the week. **Share with doctor** creates a one-time QR; opening it signed out shows the same
+   read-only report.
 7. A flag opens: two medicines, same active ingredient, with the source named.
 
 Closing line: **“They took care of us for a lifetime. Let's take care of their medicines.”**
