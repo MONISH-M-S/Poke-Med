@@ -1,0 +1,16 @@
+# Never upload local secrets or runtime patient state to Vercel.
+.env
+.env.*
+!.env.example
+data/db.json*
+data/elder-sessions.json
+data/report-shares.json
+data/uploads/*
+data/external/
+data/ocr-bench/
+data/ocr-lab/
+priscrip'/
+server.log
+*.log
+.tools/
+.vercel/
