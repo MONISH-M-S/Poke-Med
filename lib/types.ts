@@ -93,6 +93,9 @@ export interface DB {
   prescriptions: Prescription[];
   clockOffsetMinutes: number;
   lastNudge?: Nudge;
+  /** Epoch ms of the last write. Sign-in uses this to tell an abandoned demo
+   *  from one someone is still in the middle of. */
+  lastActivityAt?: number;
 }
 
 export interface ExtractedMedicine {

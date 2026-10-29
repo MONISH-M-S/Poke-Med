@@ -108,6 +108,9 @@ export async function mutate<T>(fn: (db: DB) => T): Promise<T> {
   return withMutex(async () => {
     const db = await readDB({ fresh: true });
     const result = fn(db);
+    // Every write marks the demo "in use", so sign-in can tell an abandoned
+    // session from one someone is still working through.
+    db.lastActivityAt = Date.now();
     await writeDBUnlocked(db);
     return result;
   });
@@ -118,6 +121,34 @@ export async function resetDB(): Promise<DB> {
   await writeDBUnlocked(seeded);
   setClockOffset(0);
   return seeded;
+}
+
+/**
+ * Hours after which an untouched demo counts as abandoned. Long enough that
+ * signing out and straight back in keeps your work; short enough that the next
+ * person to open the app gets the seeded week rather than someone else's.
+ */
+export const DEMO_ABANDONED_AFTER_MS = 60 * 60_000;
+
+/**
+ * Return the database to its seeded state when nobody has touched it for a
+ * while. Called on sign-in so a tester always lands on a known week without
+ * needing the demo panel.
+ *
+ * A demo that has been sitting idle is useless as a demo: the seeded week is
+ * built relative to "now", so yesterday's data has already drifted and the
+ * clock may have been left moved. Re-seeding puts it back.
+ *
+ * Recent activity is deliberately left alone — wiping a session someone is
+ * mid-way through would be worse than the stale state it replaces.
+ */
+export async function resetIfStale(): Promise<DB> {
+  const db = await readDB({ fresh: true });
+  // Databases written before `lastActivityAt` existed have no timestamp;
+  // treat them as abandoned so they get re-seeded once.
+  const last = db.lastActivityAt ?? 0;
+  if (Date.now() - last < DEMO_ABANDONED_AFTER_MS) return db;
+  return resetDB();
 }
 
 /** Collision-resistant, sortable IDs — uses Web Crypto (available in Node 15+). */

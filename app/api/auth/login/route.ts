@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readDB } from "@/lib/db";
+import { readDB, resetIfStale } from "@/lib/db";
 import { verifySecret } from "@/lib/auth-hash";
 import { signSession } from "@/lib/auth-token";
 import { COOKIE_NAME, SESSION_DAYS } from "@/lib/demo-auth";
@@ -79,6 +79,14 @@ export async function POST(req: Request) {
   }
 
   attempts.delete(ip);
+
+  // A demo that has been sitting idle is no longer a useful demo: the seeded
+  // week is built relative to "now", so yesterday's data has already drifted
+  // and the clock may have been left moved by whoever had it open. Sign-in puts
+  // it back — but only when nobody has touched it recently, so we never wipe a
+  // session someone is mid-way through. The caregiver id is stable across
+  // re-seeding, so this session's token stays valid either way.
+  await resetIfStale();
 
   const token = await signSession({
     pid: person.id,

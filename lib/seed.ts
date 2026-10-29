@@ -143,6 +143,7 @@ export function buildSeed(): DB {
     alerts: [],
     prescriptions: [],
     clockOffsetMinutes: 0,
+    lastActivityAt: Date.now(),
   };
 }
 
