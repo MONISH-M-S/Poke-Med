@@ -1,5 +1,6 @@
 import type { AppState } from "@/lib/types";
 import { StatusPill, Empty } from "@/components/ui";
+import { AlertIcon, CheckIcon } from "@/components/icons";
 
 /**
  * The report cards, shared by the caregiver's report page and the public
@@ -20,11 +21,17 @@ export default function ReportView({ week }: { week: AppState["week"] }) {
           </div>
           <dl className="mt-5 grid grid-cols-2 gap-3 text-sm">
             <div className="rounded-xl bg-brand-50 px-3 py-2.5">
-              <dt className="text-xs font-semibold text-brand-700">Taken</dt>
+              <dt className="flex items-center gap-1.5 text-xs font-semibold text-brand-700">
+                <CheckIcon size={13} />
+                Taken
+              </dt>
               <dd className="text-xl font-bold text-brand-900">{week.taken}</dd>
             </div>
             <div className="rounded-xl bg-red-50 px-3 py-2.5">
-              <dt className="text-xs font-semibold text-alert">Missed</dt>
+              <dt className="flex items-center gap-1.5 text-xs font-semibold text-alert">
+                <AlertIcon size={13} />
+                Missed
+              </dt>
               <dd className="text-xl font-bold text-alert">{week.missed}</dd>
             </div>
           </dl>
@@ -44,6 +51,14 @@ export default function ReportView({ week }: { week: AppState["week"] }) {
                 const total = d.taken + d.missed;
                 const pct = total === 0 ? 0 : Math.round((d.taken / total) * 100);
                 const dayColor = d.missed === 0 ? "bg-brand-500" : "bg-amber-400";
+                // The glyph repeats what the bar colour says, so a reader who
+                // cannot separate the colours still gets it.
+                const mark =
+                  total === 0 ? null : d.missed === 0 ? (
+                    <CheckIcon size={14} />
+                  ) : (
+                    <AlertIcon size={14} />
+                  );
                 return (
                   <li key={d.date} className="flex items-center gap-3">
                     <span className="w-10 text-xs font-bold text-muted">{d.label}</span>
@@ -56,9 +71,12 @@ export default function ReportView({ week }: { week: AppState["week"] }) {
                         style={{ width: `${pct}%` }}
                       />
                     </div>
-                    <span className={`w-20 text-right text-xs font-semibold ${d.missed ? "text-warn" : "text-muted"}`}>
-                      {total === 0 ? "—" : `${d.taken}/${total}`}
-                      {d.missed > 0 ? ` · ${d.missed} missed` : ""}
+                    <span className="flex w-20 items-center justify-end gap-1 text-right text-xs font-semibold">
+                      {mark && <span className={d.missed ? "text-warn" : "text-brand-700"}>{mark}</span>}
+                      <span className={d.missed ? "text-warn" : "text-muted"}>
+                        {total === 0 ? "—" : `${d.taken}/${total}`}
+                        {d.missed > 0 ? ` · ${d.missed} missed` : ""}
+                      </span>
                     </span>
                   </li>
                 );
@@ -75,11 +93,12 @@ export default function ReportView({ week }: { week: AppState["week"] }) {
         <h2 className="h2">Missed doses</h2>
         {week.missedList.length === 0 ? (
           <div className="mt-3 flex items-center gap-3 rounded-xl bg-brand-50 px-4 py-3">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" className="text-brand-600 shrink-0">
-              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.5" />
-              <path d="M12 8v4M12 16h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
-            <span className="text-sm text-brand-700">Nothing missed in the last seven days. Great job!</span>
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-brand-600 text-white">
+              <CheckIcon size={18} strokeWidth={2.6} />
+            </span>
+            <span className="text-sm font-semibold text-brand-700">
+              Nothing missed in the last seven days. Great job!
+            </span>
           </div>
         ) : (
           <ul className="mt-4 divide-y divide-line">
@@ -99,7 +118,7 @@ export default function ReportView({ week }: { week: AppState["week"] }) {
         )}
       </section>
 
-      <div className="mt-6 rounded-xl border border-line bg-white px-5 py-4 text-xs leading-relaxed text-muted">
+      <div className="mt-6 rounded-xl border border-line bg-surface px-5 py-4 text-xs leading-relaxed text-muted">
         <strong className="text-ink">About this report.</strong> It reflects what was confirmed in PokéMed, not a
         clinical assessment. A missed dose in this report may have been taken without confirmation. Decision support,
         not medical advice — speak to the prescriber or pharmacist about any changes.

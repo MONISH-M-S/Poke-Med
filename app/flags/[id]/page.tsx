@@ -114,7 +114,7 @@ export default function FlagDetailPage() {
           </div>
         </div>
 
-        <p className="mt-5 rounded-xl border border-line bg-white px-4 py-3 text-xs leading-relaxed text-muted">
+        <p className="mt-5 rounded-xl border border-line bg-surface px-4 py-3 text-xs leading-relaxed text-muted">
           <strong className="text-ink">Decision support, not medical advice.</strong> This flag is a prompt to check
           with a pharmacist. It is not a diagnosis and it is not an instruction to stop or change a medicine. In this
           prototype, “send to pharmacist” records a review request; no pharmacist is connected yet.

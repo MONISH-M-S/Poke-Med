@@ -361,7 +361,7 @@ export default function UploadPage() {
                     src={preview}
                     alt="Prescription preview"
                     draggable={false}
-                    className="block max-h-[260px] w-auto rounded-lg bg-white object-contain"
+                    className="block max-h-[260px] w-auto rounded-lg bg-surface object-contain"
                   />
                   {shown && (
                     <div
@@ -397,7 +397,7 @@ export default function UploadPage() {
                 htmlFor="rx-file"
                 className="flex min-h-[180px] w-full cursor-pointer flex-col items-center justify-center gap-2 text-center"
               >
-                <span className="grid h-12 w-12 place-items-center rounded-full bg-white text-brand-700 shadow-sm">
+                <span className="grid h-12 w-12 place-items-center rounded-full bg-surface text-brand-700 shadow-sm">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                     <path
                       d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.7l1-1.6h5.6L16 6h1.5A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5v-8Z"

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useAppState } from "@/lib/client";
+import { AlertIcon, ClockIcon } from "@/components/icons";
 
 export default function FlagsPage() {
   const { state } = useAppState(10000);
@@ -30,11 +31,13 @@ export default function FlagsPage() {
           {flags.map((f) => (
             <li key={f.id}>
               <Link href={`/flags/${f.id}`} className="card flex items-start gap-3 p-5 hover:border-brand-500">
+                {/* Severity marker repeats the pill's wording as a shape, not just a colour. */}
                 <span
-                  className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${
-                    f.severity === "high" ? "bg-alert" : "bg-amber-500"
-                  }`}
-                />
+                  className={`mt-1 shrink-0 ${f.severity === "high" ? "text-alert" : "text-warn"}`}
+                  aria-hidden="true"
+                >
+                  {f.severity === "high" ? <AlertIcon size={18} strokeWidth={2.2} /> : <ClockIcon size={18} strokeWidth={2.2} />}
+                </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-2">
                     <span className="text-sm font-bold text-ink">{f.title}</span>

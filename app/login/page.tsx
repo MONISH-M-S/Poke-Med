@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Mascot, Wordmark } from "@/components/Logo";
+import { ThemeToggle } from "@/components/Theme";
 
 const PEOPLE = {
   caregiver: {
@@ -72,21 +74,19 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6 bg-paper">
+    <div className="relative min-h-screen flex items-center justify-center p-6 bg-paper">
+      {/* Nav is hidden on this page, so the theme control lives here too. */}
+      <div className="absolute right-5 top-5">
+        <ThemeToggle compact />
+      </div>
       <div className="w-full max-w-sm">
-        <div className="mx-auto mb-8 grid h-16 w-16 place-items-center rounded-2xl bg-brand-600">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path
-              d="M8.5 15.5 15.5 8.5a3.5 3.5 0 1 1 5 5l-7 7a3.5 3.5 0 0 1-5-5Z"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinejoin="round"
-            />
-            <path d="m6 18 12-12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" opacity=".45" />
-          </svg>
+        <div className="flex justify-center">
+          <Mascot width={168} className="mb-3" />
         </div>
+        <h1 className="mb-8 flex justify-center">
+          <Wordmark href={null} size={44} />
+        </h1>
 
-        <h1 className="text-center text-2xl font-bold text-ink mb-1">PokéMed</h1>
         <p className="text-center text-muted mb-8">Caregiver sign-in</p>
 
         <div className="card p-6">
@@ -116,7 +116,7 @@ export default function LoginPage() {
                   type="button"
                   onClick={() => addDigit(k)}
                   disabled={busy || pin.length >= 4}
-                  className="h-12 rounded-xl border border-line bg-white text-xl font-semibold text-ink hover:bg-brand-50 active:scale-[0.98] transition disabled:opacity-50"
+                  className="h-12 rounded-xl border border-line bg-surface text-xl font-semibold text-ink hover:bg-brand-50 active:scale-[0.98] transition disabled:opacity-50"
                 >
                   {k}
                 </button>
@@ -128,7 +128,7 @@ export default function LoginPage() {
               type="button"
               onClick={backspace}
               disabled={busy || pin.length === 0}
-              className="flex-1 h-12 rounded-xl border border-line bg-white text-xl font-semibold text-muted hover:bg-red-50 active:scale-[0.98] transition disabled:opacity-50"
+              className="flex-1 h-12 rounded-xl border border-line bg-surface text-xl font-semibold text-muted hover:bg-red-50 active:scale-[0.98] transition disabled:opacity-50"
             >
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mx-auto" aria-hidden="true">
                 <path d="M9 5H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h5" />
@@ -139,7 +139,7 @@ export default function LoginPage() {
               type="button"
               onClick={clearPin}
               disabled={busy || pin.length === 0}
-              className="flex-1 h-12 rounded-xl border border-line bg-white text-xl font-semibold text-muted hover:bg-paper active:scale-[0.98] transition disabled:opacity-50"
+              className="flex-1 h-12 rounded-xl border border-line bg-surface text-xl font-semibold text-muted hover:bg-paper active:scale-[0.98] transition disabled:opacity-50"
             >
               Clear
             </button>

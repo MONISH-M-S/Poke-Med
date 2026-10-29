@@ -262,7 +262,7 @@ export function CardRowSkeleton({ count = 3 }: { count?: number } = {}) {
   return (
     <ul className="divide-y divide-line rounded-xl border border-line overflow-hidden">
       {Array.from({ length: count }).map((_, i) => (
-        <li key={i} className="flex items-center gap-3 bg-white px-4 py-3">
+        <li key={i} className="flex items-center gap-3 bg-surface px-4 py-3">
           <Skeleton className="w-[74px] h-5 shrink-0" />
           <div className="flex-1 space-y-1 min-w-0">
             <Skeleton className="h-4 w-3/4" />

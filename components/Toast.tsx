@@ -83,7 +83,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string)
 
   const colors = {
     success: "bg-brand-600 text-white",
-    error: "bg-alert text-white",
+    error: "bg-alert-solid text-white",
     info: "bg-brand-50 text-brand-700 border border-brand-100",
   };
 

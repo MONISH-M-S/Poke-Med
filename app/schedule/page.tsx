@@ -60,7 +60,7 @@ export default function SchedulePage() {
               <li key={f.id}>
                 <Link
                   href={`/flags/${f.id}`}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-white px-3 py-2.5 hover:bg-amber-50"
+                  className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-surface px-3 py-2.5 hover:bg-amber-50"
                 >
                   <span className="text-sm font-semibold text-ink">{f.title}</span>
                   <span className="shrink-0 text-xs font-bold text-warn">Review →</span>
@@ -133,7 +133,7 @@ export default function SchedulePage() {
 
 function ScheduleRow({ dose }: { dose: DoseView }) {
   return (
-    <li className="flex items-center gap-3 bg-white px-4 py-3">
+    <li className="flex items-center gap-3 bg-surface px-4 py-3">
       <span className="w-[74px] shrink-0 text-sm font-bold tabular-nums text-ink">{dose.time}</span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-semibold text-ink">

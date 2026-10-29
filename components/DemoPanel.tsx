@@ -23,7 +23,7 @@ export default function DemoPanel() {
   return (
     <div className="fixed bottom-5 right-5 z-40 print:hidden">
       {open && (
-        <div className="mb-3 w-[290px] rounded-2xl border border-line bg-white p-4 shadow-xl">
+        <div className="mb-3 w-[290px] rounded-2xl border border-line bg-surface p-4 shadow-xl">
           <p className="text-xs font-bold uppercase tracking-wider text-muted">Demo controls</p>
           <p className="mt-1 text-[11px] leading-snug text-muted">
             Not part of the product. Moves the clock so a missed dose can be shown in seconds.
@@ -46,7 +46,7 @@ export default function DemoPanel() {
       )}
       <button
         onClick={() => setOpen((v) => !v)}
-        className="ml-auto flex items-center gap-2 rounded-full bg-ink px-4 py-2.5 text-xs font-bold text-white shadow-lg"
+        className="ml-auto flex items-center gap-2 rounded-full bg-ink px-4 py-2.5 text-xs font-bold text-surface shadow-lg"
       >
         <span className="h-2 w-2 rounded-full bg-emerald-400" />
         Demo

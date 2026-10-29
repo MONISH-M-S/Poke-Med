@@ -2,15 +2,128 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Colour tokens are RGB triplets so Tailwind can still apply alpha
+ * (e.g. bg-brand-600/10). Light is the default; dark is opt-in via
+ * data-theme="dark" on <html>. No gradients anywhere by design.
+ */
 :root {
-  --paper: #f6f7f4;
-  --ink: #13201e;
+  color-scheme: light;
+
+  --c-paper: 246 247 244;
+  --c-surface: 255 255 255;
+  --c-ink: 19 32 30;
+  --c-muted: 91 107 104;
+  --c-line: 221 227 223;
+  --c-shadow: 19 32 30;
+
+  --c-brand-50: 238 247 244;
+  --c-brand-100: 214 236 229;
+  --c-brand-500: 15 118 110;
+  --c-brand-600: 13 107 95;
+  --c-brand-700: 11 90 80;
+  --c-brand-900: 8 59 53;
+
+  /* Hover fills for the solid buttons. Kept as tokens because dark mode
+     cannot reuse brand-700/alert: those are the *text* colours there. */
+  --c-brand-hover: 11 90 80;
+  --c-alert-hover: 150 26 21;
+
+  --c-alert: 179 38 30;
+  --c-alert-solid: 179 38 30;
+  --c-warn: 161 92 7;
+
+  /* Glyph colour that sits ON the bright amber tile. Dark in both themes,
+     because the amber tile is always light. */
+  --c-on-amber: 122 75 6;
+
+  --c-red-50: 254 242 242;
+  --c-red-100: 253 227 227;
+  --c-red-200: 245 184 180;
+  --c-red-900: 127 29 29;
+
+  --c-amber-50: 255 248 232;
+  --c-amber-100: 253 238 200;
+  --c-amber-200: 246 215 154;
+  --c-amber-300: 240 192 106;
+  --c-amber-400: 229 165 58;
+  --c-amber-500: 201 133 24;
+  --c-amber-900: 122 75 6;
+
+  --c-emerald-400: 52 211 153;
+
+  --c-logo-navy: 43 58 103;
+  --c-logo-teal: 26 143 125;
+  --c-logo-orange: 240 149 74;
+
+  /* Elder-mode hard-coded surfaces */
+  --c-elder-paper: 251 251 248;
+  --c-taken: 13 107 95;
+  --c-taken-shadow: 8 59 53;
+  --c-taken-off: 159 179 174;
+  --c-taken-off-shadow: 125 145 140;
+  --c-focus: 15 118 110;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --c-paper: 15 20 22;
+  --c-surface: 24 32 34;
+  --c-ink: 238 242 241;
+  --c-muted: 168 181 178;
+  --c-line: 49 64 63;
+  --c-shadow: 0 0 0;
+
+  --c-brand-50: 16 49 45;
+  --c-brand-100: 23 69 63;
+  --c-brand-500: 47 168 152;
+  --c-brand-600: 19 122 110;
+  --c-brand-700: 127 216 203;
+  --c-brand-900: 182 236 226;
+
+  /* Darker than brand-600 so the white label survives the hover. */
+  --c-brand-hover: 10 82 74;
+  --c-alert-hover: 170 40 32;
+
+  --c-alert: 255 138 128;
+  /* Lighter than light-mode so white text clears AA on a dark page. */
+  --c-alert-solid: 205 50 40;
+  --c-warn: 242 180 92;
+
+  --c-on-amber: 90 55 8;
+
+  --c-red-50: 52 24 26;
+  --c-red-100: 69 32 31;
+  --c-red-200: 107 50 46;
+  --c-red-900: 255 180 173;
+
+  --c-amber-50: 51 38 15;
+  --c-amber-100: 69 51 15;
+  --c-amber-200: 107 83 22;
+  --c-amber-300: 138 106 28;
+  --c-amber-400: 217 155 52;
+  --c-amber-500: 232 176 74;
+  --c-amber-900: 255 214 148;
+
+  --c-emerald-400: 74 222 159;
+
+  --c-logo-navy: 219 228 242;
+  --c-logo-teal: 53 179 160;
+  --c-logo-orange: 245 164 95;
+
+  --c-elder-paper: 15 20 22;
+  --c-taken: 19 122 110;
+  --c-taken-shadow: 10 78 70;
+  --c-taken-off: 78 92 90;
+  --c-taken-off-shadow: 52 64 62;
+  --c-focus: 127 216 203;
 }
 
 html,
 body {
-  background: var(--paper);
-  color: var(--ink);
+  background: rgb(var(--c-paper));
+  color: rgb(var(--c-ink));
 }
 
 body {
@@ -18,7 +131,7 @@ body {
 }
 
 *:focus-visible {
-  outline: 3px solid #0f766e;
+  outline: 3px solid rgb(var(--c-focus));
   outline-offset: 2px;
   border-radius: 6px;
 }
@@ -29,7 +142,7 @@ body {
   }
 
   .card {
-    @apply rounded-2xl border border-line bg-white shadow-card;
+    @apply rounded-2xl border border-line bg-surface shadow-card;
   }
 
   .btn {
@@ -38,15 +151,17 @@ body {
   }
 
   .btn-primary {
-    @apply btn bg-brand-600 text-white hover:bg-brand-700;
+    /* Hover uses a dedicated token: brand-700 is the *text* colour in dark
+       mode, so hovering to it would flip the label to light-on-light. */
+    @apply btn bg-brand-600 text-white hover:bg-brand-hover;
   }
 
   .btn-ghost {
-    @apply btn border border-line bg-white text-ink hover:bg-brand-50;
+    @apply btn border border-line bg-surface text-ink hover:bg-brand-50;
   }
 
   .btn-danger {
-    @apply btn bg-alert text-white hover:brightness-110;
+    @apply btn bg-alert-solid text-white hover:bg-alert-hover;
   }
 
   .btn-big {
@@ -62,7 +177,7 @@ body {
   }
 
   .field {
-    @apply w-full rounded-xl border border-line bg-white px-3 py-2 text-sm text-ink outline-none
+    @apply w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-ink outline-none
       focus:border-brand-500 focus:ring-2 focus:ring-brand-100;
   }
 
@@ -80,7 +195,7 @@ body {
 }
 
 .elder-body {
-  background: #fbfbf8;
+  background: rgb(var(--c-elder-paper));
 }
 
 .elder-name {
@@ -99,21 +214,21 @@ body {
   min-height: 118px;
   font-size: clamp(2rem, 6vw, 2.75rem);
   border-radius: 28px;
-  background: #0d6b5f;
+  background: rgb(var(--c-taken));
   color: white;
   font-weight: 800;
-  box-shadow: 0 10px 0 #083b35;
+  box-shadow: 0 10px 0 rgb(var(--c-taken-shadow));
   transition: transform 0.06s ease;
 }
 
 .elder-taken:active {
   transform: translateY(3px);
-  box-shadow: 0 6px 0 #083b35;
+  box-shadow: 0 6px 0 rgb(var(--c-taken-shadow));
 }
 
 .elder-taken:disabled {
-  background: #9fb3ae;
-  box-shadow: 0 10px 0 #7d918c;
+  background: rgb(var(--c-taken-off));
+  box-shadow: 0 10px 0 rgb(var(--c-taken-off-shadow));
 }
 
 @keyframes slide-in {

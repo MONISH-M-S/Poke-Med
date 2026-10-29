@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, useCallback, useEffect } from "react";
 import { postJSON, useAppState, clockNote, optimisticUpdate } from "@/lib/client";
 import { StatusPill, FoodNote, Empty } from "@/components/ui";
+import { AlertIcon, CheckIcon, ClockIcon } from "@/components/icons";
 import { DashboardSkeleton } from "@/components/Skeleton";
 import { useSuccessToast, useErrorToast } from "@/components/Toast";
 import type { AppState, DoseView } from "@/lib/types";
@@ -208,7 +209,7 @@ export default function Dashboard() {
         <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-4 sm:p-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex gap-3">
-              <span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full bg-alert text-white">
+              <span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full bg-alert-solid text-white">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                   <path
                     d="M18 9a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6ZM10.5 19a2 2 0 0 0 3 0"
@@ -256,7 +257,11 @@ export default function Dashboard() {
             <h2 className="h2">Today</h2>
             <p className="text-sm text-muted">
               <strong className="text-ink">{takenCount}</strong> of {today.length} taken
-              {missedCount > 0 && <span className="text-alert"> · {missedCount} missed</span>}
+              {missedCount > 0 && (
+                <span className="ml-1 inline-flex items-center gap-1 font-semibold text-alert">
+                  <AlertIcon size={13} /> {missedCount} missed
+                </span>
+              )}
             </p>
           </div>
 
@@ -272,7 +277,7 @@ export default function Dashboard() {
                     <p className="label mb-2">{bucket}</p>
                     <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line">
                       {items.map((dose) => (
-                        <li key={dose.id} className="flex items-center gap-3 bg-white px-4 py-3">
+                        <li key={dose.id} className="flex items-center gap-3 bg-surface px-4 py-3">
                           <span className="w-[74px] shrink-0 text-sm font-bold tabular-nums text-ink">
                             {dose.time}
                           </span>
@@ -385,32 +390,55 @@ export default function Dashboard() {
               {week.taken} taken · {week.missed} missed · {week.total} scheduled
             </p>
 
-            <div className="mt-4 grid grid-cols-7 gap-1.5" role="img" aria-label="Weekly adherence">
+            <div className="mt-4 grid grid-cols-7 gap-1.5">
               {week.days.map((d) => {
                 const full = d.taken + d.missed;
+                // Glyph colour is chosen per tile so contrast holds: white on
+                // the solid teal/red, dark ink on the always-light amber tile.
                 const tone =
                   full === 0
-                    ? "bg-line"
+                    ? "bg-line text-muted"
                     : d.missed === 0
-                    ? "bg-brand-500"
+                    ? "bg-brand-600 text-white"
                     : d.missed > d.taken
-                    ? "bg-alert"
-                    : "bg-amber-400";
+                    ? "bg-alert-solid text-white"
+                    : "bg-amber-400 text-on-amber";
+                const glyph =
+                  full === 0 ? (
+                    <span className="text-[11px] font-bold">—</span>
+                  ) : d.missed === 0 ? (
+                    <CheckIcon size={18} strokeWidth={3} />
+                  ) : (
+                    <span className="text-[15px] font-black leading-none">!</span>
+                  );
+                const summary =
+                  full === 0
+                    ? `${d.label}: nothing scheduled`
+                    : d.missed === 0
+                    ? `${d.label}: all ${d.taken} doses taken`
+                    : `${d.label}: ${d.missed} missed of ${full}`;
                 return (
-                  <div
-                    key={d.date}
-                    className="text-center group"
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => alert(`${d.label}: ${d.taken} taken, ${d.missed} missed of ${d.total} scheduled`)}
-                    onKeyDown={(e) => e.key === "Enter" && e.currentTarget.click()}
-                  >
-                    <div className={`h-12 rounded-md ${tone} transition-colors group-hover:opacity-80 group-focus:opacity-80 group-focus:outline-none group-focus:ring-2 group-focus:ring-brand-500`} />
+                  <div key={d.date} className="text-center">
+                    <div
+                      className={`grid h-12 place-items-center rounded-md ${tone} transition-colors`}
+                      // The tile is decorative; the summary below it is the real text.
+                      aria-hidden="true"
+                    >
+                      {glyph}
+                    </div>
                     <span className="mt-1 block text-[10px] font-semibold text-muted">{d.label}</span>
+                    <span className="sr-only">{summary}</span>
                   </div>
                 );
               })}
             </div>
+            <p className="mt-2 text-[11px] text-muted">
+              <span className="mr-1 inline-flex align-middle text-brand-700">
+                <CheckIcon size={12} />
+              </span>
+              all taken · <span className="mx-1 font-black align-middle text-warn">!</span> some missed ·{" "}
+              <span className="mx-1 align-middle text-muted">—</span> nothing scheduled
+            </p>
           </section>
 
           {/* Flags */}
@@ -431,9 +459,13 @@ export default function Dashboard() {
                       href={`/flags/${f.id}`}
                       className="flex items-start gap-2 rounded-xl border border-line px-3 py-2.5 hover:bg-paper"
                     >
+                      {/* Severity is spelled out in the pill; the marker repeats the shape, not just the colour. */}
                       <span
-                        className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${f.severity === "high" ? "bg-alert" : "bg-amber-500"}`}
-                      />
+                        className={`mt-1.5 shrink-0 ${f.severity === "high" ? "text-alert" : "text-warn"}`}
+                        aria-hidden="true"
+                      >
+                        {f.severity === "high" ? <AlertIcon size={16} strokeWidth={2.2} /> : <ClockIcon size={16} strokeWidth={2.2} />}
+                      </span>
                       <span className="min-w-0">
                         <span className="block text-sm font-semibold text-ink">{f.title}</span>
                         <span className="block text-xs text-muted">Open for pharmacist review →</span>
@@ -474,7 +506,7 @@ export default function Dashboard() {
       {/* Pairing Modal */}
       {pairingModal.open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setPairingModal({ open: false })}>
-          <div className="w-full max-w-md bg-white rounded-2xl p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-md bg-surface rounded-2xl p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h2 className="h2">Set up {elder.name}&apos;s phone</h2>
               <button className="text-muted hover:text-ink" onClick={() => setPairingModal({ open: false })}>
@@ -489,7 +521,7 @@ export default function Dashboard() {
             </p>
             {pairingModal.url && (
               <div className="mt-4 flex flex-col items-center gap-3">
-                <div className="rounded-xl border border-line p-4 bg-white">
+                <div className="rounded-xl border border-line p-4 bg-surface">
                   {pairingModal.qr ? (
                     <img src={pairingModal.qr} alt="Pairing QR code" className="mx-auto" />
                   ) : (

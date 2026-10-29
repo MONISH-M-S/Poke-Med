@@ -5,6 +5,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { postJSON, useAppState, optimisticUpdate } from "@/lib/client";
 import { ElderSkeleton } from "@/components/Skeleton";
 import { useSuccessToast, useErrorToast } from "@/components/Toast";
+import { LogoMark } from "@/components/Logo";
+import { AlertIcon, ArrowIcon, CheckIcon, ClockIcon } from "@/components/icons";
 import type { AppState, DoseView } from "@/lib/types";
 
 type Lang = "en" | "ta" | "hi";
@@ -219,11 +221,13 @@ export default function ElderScreen() {
     <div className="elder-body min-h-screen">
       <div className="mx-auto flex min-h-screen w-full max-w-2xl flex-col px-5 pb-8 pt-5">
         <div className="flex items-center justify-between">
-          <Link href="/" className="text-lg font-extrabold tracking-tight text-brand-700">
-            PokéMed
+          <Link href="/" className="flex items-center gap-2 text-lg font-extrabold tracking-tight">
+            <LogoMark size={26} />
+            <span style={{ color: "rgb(var(--c-logo-navy))" }}>Poké</span>
+            <span style={{ color: "rgb(var(--c-logo-teal))" }}>Med</span>
           </Link>
           <div className="flex flex-wrap items-center justify-end gap-1.5">
-            <div className="flex rounded-full border border-line bg-white p-1" role="group" aria-label={t.language}>
+            <div className="flex rounded-full border border-line bg-surface p-1" role="group" aria-label={t.language}>
               {(["en", "ta", "hi"] as Lang[]).map((l) => (
                 <button
                   key={l}
@@ -240,7 +244,7 @@ export default function ElderScreen() {
             <button
               onClick={() => setVoiceOn((v) => !v)}
               className={`rounded-full border px-2.5 py-1.5 text-xs font-bold ${
-                voiceOn ? "border-brand-100 bg-brand-50 text-brand-700" : "border-line bg-white text-muted"
+                voiceOn ? "border-brand-100 bg-brand-50 text-brand-700" : "border-line bg-surface text-muted"
               }`}
               aria-pressed={voiceOn}
             >
@@ -248,7 +252,7 @@ export default function ElderScreen() {
             </button>
             <button
               onClick={() => void signOut()}
-              className="rounded-full border border-line bg-white px-2.5 py-1.5 text-xs font-bold text-muted"
+              className="rounded-full border border-line bg-surface px-2.5 py-1.5 text-xs font-bold text-muted"
             >
               Switch
             </button>
@@ -273,9 +277,7 @@ export default function ElderScreen() {
         {justTaken && (
           <div className="mt-5 flex items-center gap-3 rounded-2xl bg-brand-50 px-5 py-4 text-xl font-bold text-brand-700">
             <span className="grid h-9 w-9 place-items-center rounded-full bg-brand-600 text-white">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="m5 13 4 4L19 7" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              <CheckIcon size={20} strokeWidth={2.6} />
             </span>
             {t.wellDone}
           </div>
@@ -298,6 +300,14 @@ export default function ElderScreen() {
                       : "bg-amber-50 text-warn"
                   }`}
                 >
+                  {/* Shape matches the word so the state survives greyscale. */}
+                  {dose.status === "missed" ? (
+                    <AlertIcon size={15} strokeWidth={2.2} />
+                  ) : isUpcoming ? (
+                    <ArrowIcon size={15} strokeWidth={2.2} />
+                  ) : (
+                    <ClockIcon size={15} strokeWidth={2.2} />
+                  )}
                   {dose.status === "missed" ? t.missed : isUpcoming ? t.upcoming : t.due}
                 </span>
                 <span className="text-xl font-bold tabular-nums text-muted">{dose.time}</span>
@@ -354,9 +364,7 @@ export default function ElderScreen() {
           <div className="mt-4 flex flex-1 flex-col">
             <div className="card flex flex-1 flex-col items-center justify-center p-8 text-center">
               <span className="grid h-24 w-24 place-items-center rounded-full bg-brand-50 text-brand-600">
-                <svg width="52" height="52" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path d="m5 13 4 4L19 7" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
+                <CheckIcon size={52} strokeWidth={2.4} />
               </span>
               <h1 className="elder-name mt-6 font-extrabold text-ink">{t.allDone}</h1>
               {nextDose && nextTime ? (

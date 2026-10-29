@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { postJSON } from "@/lib/client";
+import { AlertIcon, CheckIcon, ClockIcon } from "@/components/icons";
 import type { ExtractedMedicine } from "@/lib/types";
 
 type Row = ExtractedMedicine & { key: string };
@@ -160,7 +161,7 @@ export default function ReviewPage() {
             </div>
             {image ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={image} alt="Uploaded prescription" className="max-h-[440px] w-full bg-white object-contain" />
+              <img src={image} alt="Uploaded prescription" className="max-h-[440px] w-full bg-surface object-contain" />
             ) : (
               <p className="px-4 py-6 text-sm text-muted">No photo — the lines were typed in.</p>
             )}
@@ -205,12 +206,12 @@ export default function ReviewPage() {
         <section className="space-y-4">
           {rows.map((row, index) => {
             const pct = Math.round(row.confidence * 100);
-            const tone =
-              row.confidence >= 0.9
-                ? "bg-brand-50 text-brand-700"
-                : row.confidence >= 0.7
-                  ? "bg-amber-50 text-warn"
-                  : "bg-red-50 text-alert";
+            const high = row.confidence >= 0.9;
+            const mid = row.confidence >= 0.7;
+            // Shape repeats the colour so the tier reads in greyscale:
+            // tick = confident, clock = check this, "!" = not confident.
+            const tone = high ? "bg-brand-50 text-brand-700" : mid ? "bg-amber-50 text-warn" : "bg-red-50 text-alert";
+            const glyph = high ? <CheckIcon size={13} /> : mid ? <ClockIcon size={13} /> : <AlertIcon size={13} />;
             return (
               <div key={row.key} className="card p-4 sm:p-5">
                 <div className="flex items-start justify-between gap-3">
@@ -223,6 +224,7 @@ export default function ReviewPage() {
                       className={`pill ${tone}`}
                       title="How clearly the dose pattern was read and whether the brand is known — not a medical judgement."
                     >
+                      {glyph}
                       {pct}% read confidence
                     </span>
                     {row.notes.length > 0 && <span className="pill bg-amber-100 text-warn">Please check</span>}
@@ -293,7 +295,7 @@ export default function ReviewPage() {
                   <label className="flex items-end gap-2 pb-2">
                     <input
                       type="checkbox"
-                      className="h-4 w-4 accent-[#0d6b5f]"
+                      className="h-4 w-4 accent-brand-600"
                       checked={row.prn}
                       onChange={(e) => update(row.key, { prn: e.target.checked, times: e.target.checked ? [] : row.times })}
                     />
@@ -315,7 +317,7 @@ export default function ReviewPage() {
                             className={`rounded-full border px-3 py-1.5 text-sm font-semibold ${
                               active
                                 ? "border-brand-500 bg-brand-50 text-brand-700"
-                                : "border-line bg-white text-muted hover:bg-paper"
+                                : "border-line bg-surface text-muted hover:bg-paper"
                             }`}
                             aria-pressed={active}
                           >

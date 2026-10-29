@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { Wordmark } from "@/components/Logo";
+import { ThemeToggle } from "@/components/Theme";
 
 const links = [
   { href: "/", label: "Dashboard" },
@@ -46,25 +48,9 @@ export default function Nav() {
   }
 
   return (
-    <header className="sticky top-0 z-30 border-b border-line bg-white/95 backdrop-blur print:hidden">
+    <header className="sticky top-0 z-30 border-b border-line bg-surface print:hidden">
       <div className="container-app flex h-16 items-center justify-between gap-4">
-        <Link href="/" className="flex items-center gap-2.5">
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand-600 text-white">
-            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M8.5 15.5 15.5 8.5a3.5 3.5 0 1 1 5 5l-7 7a3.5 3.5 0 0 1-5-5Z"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinejoin="round"
-              />
-              <path d="m6 18 12-12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" opacity=".45" />
-            </svg>
-          </span>
-          <span className="leading-tight">
-            <span className="block text-[15px] font-extrabold tracking-tight text-ink">PokéMed</span>
-            <span className="block text-[11px] font-medium text-muted">Lakshmi&apos;s medicines</span>
-          </span>
-        </Link>
+        <Wordmark href="/" tagline={false} size={30} />
 
         <nav className="flex items-center gap-1 overflow-x-auto" aria-label="Main">
           {links.map((l) => {
@@ -73,8 +59,12 @@ export default function Nav() {
               <Link
                 key={l.href}
                 href={l.href}
+                aria-current={active ? "page" : undefined}
                 className={`whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold transition ${
-                  active ? "bg-brand-50 text-brand-700" : "text-muted hover:bg-paper hover:text-ink"
+                  // The underline carries the active state, not the colour alone.
+                  active
+                    ? "bg-brand-50 text-brand-700 underline decoration-2 underline-offset-4"
+                    : "text-muted hover:bg-paper hover:text-ink"
                 }`}
               >
                 {l.label}
@@ -84,8 +74,10 @@ export default function Nav() {
 
           <span className="mx-1 hidden h-6 w-px bg-line sm:block" />
 
+          <ThemeToggle compact />
+
           <span className="hidden items-center gap-2 rounded-lg px-2 py-1.5 sm:flex">
-            <span className="grid h-7 w-7 place-items-center rounded-full bg-ink text-[11px] font-bold text-white">
+            <span className="grid h-7 w-7 place-items-center rounded-full bg-ink text-[11px] font-bold text-surface">
               {(me?.name ?? "A").slice(0, 1)}
             </span>
             <span className="leading-tight">

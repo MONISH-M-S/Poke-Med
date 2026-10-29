@@ -15,7 +15,8 @@
     "test:ocr-service": "node scripts/ocr-service-test.mjs",
     "test:ui": "node scripts/ui-test.mjs",
     "test:security": "node scripts/security-test.mjs",
-    "test:all": "npm test && npm run test:security && npm run test:ocr-service && npm run test:ui",
+    "test:contrast": "node scripts/contrast-audit.mjs",
+    "test:all": "npm test && npm run test:contrast && npm run test:security && npm run test:ocr-service && npm run test:ui",
     "shots": "node scripts/shots.mjs",
     "ocr:bench": "node scripts/ocr-bench.mjs",
     "ocr:lab": "node scripts/ocr-lab.mjs"

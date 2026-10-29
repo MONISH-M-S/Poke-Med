@@ -1,26 +1,31 @@
 import type { DoseStatus, FoodRel } from "@/lib/types";
+import { AlertIcon, CheckIcon, ClockIcon } from "@/components/icons";
 
+/**
+ * Every pill pairs a distinct shape with its word and its colour, so the
+ * status survives greyscale printing and colour vision differences.
+ */
 export function StatusPill({ status }: { status: DoseStatus }) {
   if (status === "taken")
     return (
       <span className="pill bg-brand-50 text-brand-700">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="m5 13 4 4L19 7" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+        <CheckIcon />
         Taken
       </span>
     );
   if (status === "missed")
     return (
       <span className="pill bg-red-50 text-alert">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M12 8v5m0 3.5v.5" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
-          <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
-        </svg>
+        <AlertIcon />
         Missed
       </span>
     );
-  return <span className="pill bg-amber-50 text-warn">Due</span>;
+  return (
+    <span className="pill bg-amber-50 text-warn">
+      <ClockIcon />
+      Due
+    </span>
+  );
 }
 
 export function FoodNote({ rel }: { rel: FoodRel }) {

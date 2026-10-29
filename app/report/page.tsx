@@ -90,7 +90,7 @@ export default function ReportPage() {
           onClick={() => setShare({ open: false })}
         >
           <div
-            className="w-full max-w-md rounded-2xl bg-white p-6"
+            className="w-full max-w-md rounded-2xl bg-surface p-6"
             role="dialog"
             aria-modal="true"
             aria-labelledby="share-report-title"
@@ -124,7 +124,7 @@ export default function ReportPage() {
               </div>
             ) : (
               <div className="mt-4 flex flex-col items-center gap-3">
-                <div className="rounded-xl border border-line bg-white p-4">
+                <div className="rounded-xl border border-line bg-surface p-4">
                   {share.qr ? (
                     <img src={share.qr} alt="One-time report QR code" className="mx-auto" />
                   ) : (
